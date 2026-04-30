@@ -1,38 +1,25 @@
--- ============================================================
---  Database: Marketplace / Bazaar system
--- ============================================================
-
 CREATE DATABASE IF NOT EXISTS marketplace
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
 
 USE marketplace;
 
--- ------------------------------------------------------------
--- 1. Uzivatel (User)
--- ------------------------------------------------------------
 CREATE TABLE Uzivatel (
                           uzivatel_id  INT UNSIGNED    NOT NULL AUTO_INCREMENT,
                           jmeno        VARCHAR(100)    NOT NULL,
                           prijmeni     VARCHAR(100)    NOT NULL,
                           email        VARCHAR(255)    NOT NULL UNIQUE,
                           telefon      VARCHAR(20)             DEFAULT NULL,
-                          heslo        VARCHAR(255)    NOT NULL,           -- store hashed value only!
+                          heslo        VARCHAR(255)    NOT NULL,
                           PRIMARY KEY (uzivatel_id)
 );
 
--- ------------------------------------------------------------
--- 2. Kategorie (Category) — self-referencing for subcategories
--- ------------------------------------------------------------
 CREATE TABLE Kategorie (
                            kategorie_id INT UNSIGNED    NOT NULL AUTO_INCREMENT,
                            nazev        VARCHAR(150)    NOT NULL,
                            PRIMARY KEY (kategorie_id)
 );
 
--- ------------------------------------------------------------
--- 3. Polozka (Item / Listing base)
--- ------------------------------------------------------------
 CREATE TABLE Polozka (
                          polozka_id   INT UNSIGNED    NOT NULL AUTO_INCREMENT,
                          kategorie_id INT UNSIGNED    NOT NULL,
@@ -48,12 +35,9 @@ CREATE TABLE Polozka (
                                  ON UPDATE CASCADE ON DELETE RESTRICT
 );
 
--- ------------------------------------------------------------
--- 4. Nabidka (Offer)
--- ------------------------------------------------------------
 CREATE TABLE Nabidka (
                          nabidka_id   INT UNSIGNED        NOT NULL AUTO_INCREMENT,
-                         uzivatel_id  INT UNSIGNED        NOT NULL,           -- seller
+                         uzivatel_id  INT UNSIGNED        NOT NULL,
                          polozka_id   INT UNSIGNED        NOT NULL,
                          cena         DECIMAL(10, 2)      NOT NULL,
                          datum        DATETIME            NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -67,27 +51,21 @@ CREATE TABLE Nabidka (
                                  ON UPDATE CASCADE ON DELETE RESTRICT
 );
 
--- ------------------------------------------------------------
--- 5. Fotka (Photo) — belongs to an offer
--- ------------------------------------------------------------
 CREATE TABLE Fotka (
                        fotka_id     INT UNSIGNED    NOT NULL AUTO_INCREMENT,
                        nabidka_id   INT UNSIGNED    NOT NULL,
                        url          VARCHAR(500)    NOT NULL,
-                       poradi       TINYINT UNSIGNED NOT NULL DEFAULT 0,    -- display order
+                       poradi       TINYINT UNSIGNED NOT NULL DEFAULT 0,
                        PRIMARY KEY (fotka_id),
                        CONSTRAINT fk_fotka_nabidka
                            FOREIGN KEY (nabidka_id) REFERENCES Nabidka (nabidka_id)
                                ON UPDATE CASCADE ON DELETE CASCADE
 );
 
--- ------------------------------------------------------------
--- 6. Objednavka (Order)
--- ------------------------------------------------------------
 CREATE TABLE Objednavka (
                             objednavka_id INT UNSIGNED   NOT NULL AUTO_INCREMENT,
                             nabidka_id    INT UNSIGNED   NOT NULL,
-                            kupujici_id   INT UNSIGNED   NOT NULL,              -- buyer
+                            kupujici_id   INT UNSIGNED   NOT NULL,
                             stav          ENUM('cekajici','zaplaceno','odeslano','dokonceno','zruseno')
                                  NOT NULL DEFAULT 'cekajici',
                             vytvoreno     DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -100,16 +78,13 @@ CREATE TABLE Objednavka (
                                     ON UPDATE CASCADE ON DELETE RESTRICT
 );
 
--- ------------------------------------------------------------
--- 7. Hodnoceni (Review / Rating)
--- ------------------------------------------------------------
 CREATE TABLE Hodnoceni (
                            hodnoceni_id  INT UNSIGNED   NOT NULL AUTO_INCREMENT,
                            objednavka_id INT UNSIGNED   NOT NULL,
-                           hodnotitel_id INT UNSIGNED   NOT NULL,              -- reviewer
-                           hodnoceny_id  INT UNSIGNED   NOT NULL,              -- reviewed user
+                           hodnotitel_id INT UNSIGNED   NOT NULL,
+                           hodnoceny_id  INT UNSIGNED   NOT NULL,
                            komentar      TEXT                    DEFAULT NULL,
-                           rating        TINYINT UNSIGNED NOT NULL,            -- e.g. 1–5
+                           rating        TINYINT UNSIGNED NOT NULL,
                            PRIMARY KEY (hodnoceni_id),
                            CONSTRAINT rating_range CHECK (rating BETWEEN 1 AND 5),
                            CONSTRAINT fk_hodnoceni_objednavka
@@ -121,14 +96,10 @@ CREATE TABLE Hodnoceni (
                            CONSTRAINT fk_hodnoceni_hodnoceny
                                FOREIGN KEY (hodnoceny_id)  REFERENCES Uzivatel (uzivatel_id)
                                    ON UPDATE CASCADE ON DELETE RESTRICT,
-    -- one review per order per reviewer
                            CONSTRAINT uq_hodnoceni_order_reviewer
                                UNIQUE (objednavka_id, hodnotitel_id)
 );
 
--- ============================================================
---  Indexes for common query patterns
--- ============================================================
 CREATE INDEX idx_polozka_kategorie   ON Polozka    (kategorie_id);
 CREATE INDEX idx_nabidka_uzivatel    ON Nabidka    (uzivatel_id);
 CREATE INDEX idx_nabidka_polozka     ON Nabidka    (polozka_id);
