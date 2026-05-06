@@ -21,7 +21,6 @@ body {
     min-height: 100vh;
 }
 
-
 header {
     position: sticky; top: 0; z-index: 100;
     background: var(--ink);
@@ -98,7 +97,6 @@ header {
     padding: 0 5px; margin-left: 2px;
 }
 
-
 .hero {
     background: linear-gradient(135deg, #607b7d 0%, #3a606e 60%, #828e82 100%);
     padding: 80px 32px 64px;
@@ -124,7 +122,6 @@ header {
     position: relative;
 }
 .hero-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; position: relative; }
-
 
 .section-label {
     padding: 32px 32px 0;
@@ -165,6 +162,8 @@ header {
 .card:hover .card-img-wrap img { transform: scale(1.04); }
 .card-placeholder {
     font-size: 3rem; opacity: .25;
+    display: flex; align-items: center; justify-content: center;
+    height: 100%; width: 100%;
 }
 
 .card-body { padding: 16px; flex: 1; display: flex; flex-direction: column; gap: 6px; }
@@ -189,7 +188,6 @@ header {
 }
 .empty-state .icon { font-size: 3.5rem; margin-bottom: 12px; opacity: .35; }
 .empty-state p { font-size: 1.05rem; }
-
 
 .cart-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,.45);
@@ -252,7 +250,6 @@ header {
 }
 .cart-total span:last-child { color: var(--ink); }
 
-
 .modal {
     display: none; position: fixed; inset: 0; z-index: 300;
     background: rgb(58, 96, 110); backdrop-filter: blur(4px);
@@ -297,14 +294,13 @@ input[type=number], textarea, select {
     transition: border-color .18s, box-shadow .18s;
     outline: none;
 }
-input:focus, textarea:focus {
+input:focus, textarea:focus, select:focus {
     border-color: var(--amber);
     box-shadow: 0 0 0 3px rgb(58, 96, 110);
 }
 textarea { resize: vertical; min-height: 90px; }
 
 .modal-actions { display: flex; gap: 10px; margin-top: 24px; justify-content: flex-end; }
-
 
 #chatBox {
     height: 220px; overflow-y: auto;
@@ -319,7 +315,6 @@ textarea { resize: vertical; min-height: 90px; }
 
 .chat-input-row { display: flex; gap: 8px; }
 .chat-input-row input { flex: 1; }
-
 
 #toast {
     position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%);
@@ -336,6 +331,44 @@ textarea { resize: vertical; min-height: 90px; }
     transform: translateX(-50%) translateY(-4px);
 }
 
+.order-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--cream);
+}
+.order-row:last-child { border-bottom: none; }
+
+.notif-btn { position: relative; }
+.notif-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: #e57373; color: #fff;
+    font-size: .7rem; font-weight: 700;
+    min-width: 17px; height: 17px; border-radius: 999px;
+    padding: 0 4px; margin-left: 2px;
+}
+.notif-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--cream);
+    font-size: .88rem;
+}
+.notif-row:last-child { border-bottom: none; }
+.notif-unread { background: #f0f7ff; border-radius: 8px; padding: 10px 8px; }
+
+.card-meta {
+    display: inline-block;
+    font-size: .73rem;
+    background: var(--cream);
+    color: var(--ink);
+    border-radius: 999px;
+    padding: 2px 8px;
+    margin-right: 4px;
+}
+.card-condition { background: #e8f5e9; }
 
 @media (max-width: 640px) {
     header { padding: 0 16px; gap: 10px; }
