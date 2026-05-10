@@ -12,18 +12,28 @@
 
 <header>
     <div class="logo">WINDED</div>
-    <div class="nav-center">
-        <span class="search-icon">🔍</span>
-        <input type="text" id="search" placeholder="Hledat učebnice…" oninput="filterProducts()">
-    </div>
     <div class="nav-actions">
         <button class="btn btn-ghost notif-btn" id="notifBtn" onclick="openNotifications()" style="display:none;">
             🔔 <span class="notif-badge" id="notif-count" style="display:none;">0</span>
         </button>
         <button class="btn btn-ghost" onclick="openChat()">Chat</button>
-        <button class="btn btn-ghost" onclick="openMyOrders()" id="myOrdersBtn" style="display:none;">Moje objednávky</button>
-        <button class="btn btn-ghost" onclick="openMyListings()" id="myListingsBtn" style="display:none;">Moje inzeráty</button>
+
+        <!-- Tlačítko přihlásit (viditelné odhlášenému uživateli) -->
         <button class="btn btn-ghost" onclick="openLogin()" id="loginBtn">Přihlásit</button>
+
+        <!-- Profilové menu (viditelné přihlášenému uživateli) -->
+        <div class="profile-drop-wrap" id="profileDropWrap" style="display:none;">
+            <button class="btn btn-ghost profile-btn" id="profileBtn" onclick="toggleProfileMenu()">
+                👤 <span id="profileName"></span> <span class="profile-caret">▾</span>
+            </button>
+            <div class="profile-menu" id="profileMenu">
+                <button class="profile-menu-item" onclick="openMyOrders(); closeProfileMenu();">📦 Moje objednávky</button>
+                <button class="profile-menu-item" onclick="openMyListings(); closeProfileMenu();">📋 Moje inzeráty</button>
+                <div class="profile-menu-divider"></div>
+                <button class="profile-menu-item profile-menu-logout" onclick="logout(); closeProfileMenu();">🚪 Odhlásit se</button>
+            </div>
+        </div>
+
         <button class="btn btn-outline" onclick="toggleCart()">
             Košík <span class="cart-badge" id="cart-count">0</span>
         </button>
@@ -39,9 +49,28 @@
         <button class="btn btn-amber" onclick="openAdd()">
             Přidat učebnici
         </button>
-        <button class="btn btn-outline" onclick="document.getElementById('products').scrollIntoView({behavior:'smooth'})">
-            Procházet nabídku ↓
-        </button>
+    </div>
+
+    <!-- Search přesunutý z navu + filtry -->
+    <div class="hero-search-wrap">
+        <span class="hero-search-icon">🔍</span>
+        <input type="text" id="search" placeholder="Hledat název, autora, ISBN…" oninput="filterProducts()">
+    </div>
+
+    <div class="hero-filters">
+        <div class="filter-group">
+            <span class="filter-label">Stav:</span>
+            <button class="filter-chip active" onclick="setStavFilter('', this)">Vše</button>
+            <button class="filter-chip" onclick="setStavFilter('novy', this)">Nový</button>
+            <button class="filter-chip" onclick="setStavFilter('pouzity', this)">Použitý</button>
+            <button class="filter-chip" onclick="setStavFilter('poskozeny', this)">Poškozený</button>
+        </div>
+        <div class="filter-group">
+            <span class="filter-label">Řadit:</span>
+            <button class="filter-chip active" onclick="setSortFilter('newest', this)">Nejnovější</button>
+            <button class="filter-chip" onclick="setSortFilter('price_asc', this)">Nejlevnější</button>
+            <button class="filter-chip" onclick="setSortFilter('price_desc', this)">Nejdražší</button>
+        </div>
     </div>
 </section>
 
@@ -70,20 +99,26 @@
     </div>
 </div>
 
-<!-- login modal -->
+<!-- ===================== MODALY ===================== -->
+
+<!-- login modal (zavírá se i kliknutím bokem) -->
 <div class="modal" id="loginModal">
     <div class="modal-content">
+        <button class="modal-x-close" onclick="closeModal('loginModal')" title="Zavřít">✕</button>
         <h2>Přihlásit se</h2>
         <div class="form-group">
             <label>E-mail</label>
-            <input type="email" id="loginEmail" placeholder="vas@email.cz">
+            <input type="email" id="loginEmail" placeholder="vas@email.cz" autocomplete="username">
         </div>
         <div class="form-group">
             <label>Heslo</label>
-            <input type="password" id="loginPassword" placeholder="••••••••">
+            <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
         </div>
         <p style="font-size:.82rem;color:var(--ink);margin-top:8px;">
             Nemáte účet? <a href="#" onclick="switchToRegister(); return false;" style="color:var(--amber);text-decoration:underline;">Zaregistrujte se</a>
+        </p>
+        <p style="font-size:.82rem;color:var(--ink);margin-top:4px;">
+            <a href="#" onclick="openForgotPassword(); return false;" style="color:var(--amber);text-decoration:underline;">Zapomněli jste heslo?</a>
         </p>
         <div class="modal-actions">
             <button class="btn btn-ghost" style="color:var(--ink);" onclick="closeModal('loginModal')">Zrušit</button>
@@ -92,21 +127,22 @@
     </div>
 </div>
 
-<!-- register modal -->
+<!-- register modal (zavírá se i kliknutím bokem) -->
 <div class="modal" id="registerModal">
     <div class="modal-content">
+        <button class="modal-x-close" onclick="closeModal('registerModal')" title="Zavřít">✕</button>
         <h2>Registrace</h2>
         <div class="form-group">
             <label>Jméno</label>
-            <input type="text" id="regJmeno" placeholder="Vaše jméno">
+            <input type="text" id="regJmeno" placeholder="Vaše jméno" autocomplete="given-name">
         </div>
         <div class="form-group">
             <label>E-mail</label>
-            <input type="email" id="regEmail" placeholder="vas@email.cz">
+            <input type="email" id="regEmail" placeholder="vas@email.cz" autocomplete="username">
         </div>
         <div class="form-group">
             <label>Heslo</label>
-            <input type="password" id="regPassword" placeholder="••••••••">
+            <input type="password" id="regPassword" placeholder="••••••••" autocomplete="new-password">
         </div>
         <p style="font-size:.82rem;color:var(--ink);margin-top:8px;">
             Máte účet? <a href="#" onclick="switchToLogin(); return false;" style="color:var(--amber);text-decoration:underline;">Přihlaste se</a>
@@ -118,9 +154,50 @@
     </div>
 </div>
 
-<!-- add modal -->
+<!-- forgot password modal (zavírá se i kliknutím bokem) -->
+<div class="modal" id="forgotPasswordModal">
+    <div class="modal-content">
+        <button class="modal-x-close" onclick="closeModal('forgotPasswordModal')" title="Zavřít">✕</button>
+        <h2>Zapomenuté heslo</h2>
+        <p style="font-size:.88rem;color:var(--ink);margin-bottom:16px;">
+            Zadejte svůj e-mail a pošleme vám odkaz pro resetování hesla.
+        </p>
+        <div class="form-group">
+            <label>E-mail</label>
+            <input type="email" id="forgotEmail" placeholder="vas@email.cz" autocomplete="username">
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" style="color:var(--ink);" onclick="closeModal('forgotPasswordModal')">Zrušit</button>
+            <button class="btn btn-amber" onclick="sendForgotPassword()">Odeslat odkaz</button>
+        </div>
+    </div>
+</div>
+
+<!-- reset password modal (otevírá se přes URL ?reset_token=...) -->
+<div class="modal" id="resetPasswordModal">
+    <div class="modal-content">
+        <button class="modal-x-close" onclick="closeModal('resetPasswordModal')" title="Zavřít">✕</button>
+        <h2>Nové heslo</h2>
+        <input type="hidden" id="resetToken">
+        <div class="form-group">
+            <label>Nové heslo</label>
+            <input type="password" id="resetPassword" placeholder="Min. 6 znaků" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+            <label>Potvrdit heslo</label>
+            <input type="password" id="resetPassword2" placeholder="Zopakujte heslo" autocomplete="new-password">
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" style="color:var(--ink);" onclick="closeModal('resetPasswordModal')">Zrušit</button>
+            <button class="btn btn-amber" onclick="submitResetPassword()">Uložit heslo</button>
+        </div>
+    </div>
+</div>
+
+<!-- add modal (zavírá se i kliknutím bokem) -->
 <div class="modal" id="addModal">
     <div class="modal-content">
+        <button class="modal-x-close" onclick="closeModal('addModal')" title="Zavřít">✕</button>
         <h2>Přidat učebnici</h2>
         <div class="form-group">
             <label>Název</label>
@@ -161,25 +238,26 @@
     </div>
 </div>
 
-<!-- shipping modal -->
+<!-- shipping modal – NEKONČÍ kliknutím bokem, jen křížkem -->
 <div class="modal" id="shippingModal">
     <div class="modal-content">
+        <button class="modal-x-close" onclick="closeModal('shippingModal')" title="Zavřít">✕</button>
         <h2>Doručovací údaje</h2>
         <div class="form-group">
             <label>Jméno</label>
-            <input type="text" id="shipJmeno" placeholder="Jan">
+            <input type="text" id="shipJmeno" placeholder="Jan" autocomplete="given-name">
         </div>
         <div class="form-group">
             <label>Příjmení</label>
-            <input type="text" id="shipPrijmeni" placeholder="Novák">
+            <input type="text" id="shipPrijmeni" placeholder="Novák" autocomplete="family-name">
         </div>
         <div class="form-group">
             <label>Adresa</label>
-            <textarea id="shipAdresa" placeholder="Ulice 123, 110 00 Praha"></textarea>
+            <textarea id="shipAdresa" placeholder="Ulice 123, 110 00 Praha" autocomplete="street-address"></textarea>
         </div>
         <div class="form-group">
             <label>Telefon</label>
-            <input type="text" id="shipTelefon" placeholder="+420 123 456 789">
+            <input type="tel" id="shipTelefon" placeholder="+420 123 456 789" autocomplete="tel">
         </div>
         <div class="modal-actions">
             <button class="btn btn-ghost" style="color:var(--ink);" onclick="closeModal('shippingModal')">Zrušit</button>
@@ -188,9 +266,10 @@
     </div>
 </div>
 
-<!-- my orders modal -->
+<!-- my orders modal – NEKONČÍ kliknutím bokem -->
 <div class="modal" id="myOrdersModal">
     <div class="modal-content" style="max-width: 600px; max-height: 80vh; display: flex; flex-direction: column;">
+        <button class="modal-x-close" onclick="closeModal('myOrdersModal')" title="Zavřít">✕</button>
         <h2>Moje objednávky</h2>
         <div id="myOrdersList" style="overflow-y: auto; flex: 1; margin-top: 10px;"></div>
         <div class="modal-actions">
@@ -199,20 +278,23 @@
     </div>
 </div>
 
-<!-- my listings modal -->
+<!-- my listings modal – NEKONČÍ kliknutím bokem -->
 <div class="modal" id="myListingsModal">
     <div class="modal-content" style="max-width: 600px; max-height: 80vh; display: flex; flex-direction: column;">
+        <button class="modal-x-close" onclick="closeModal('myListingsModal')" title="Zavřít">✕</button>
         <h2>Moje inzeráty</h2>
         <div id="myListingsList" style="overflow-y: auto; flex: 1; margin-top: 10px;"></div>
-        <div class="modal-actions">
+        <div class="modal-actions" style="justify-content: space-between;">
+            <button class="btn btn-amber" onclick="closeModal('myListingsModal'); openAdd();">+ Přidat inzerát</button>
             <button class="btn btn-ghost" style="color:var(--ink);" onclick="closeModal('myListingsModal')">Zavřít</button>
         </div>
     </div>
 </div>
 
-<!-- notifications modal -->
+<!-- notifications modal – NEKONČÍ kliknutím bokem -->
 <div class="modal" id="notificationsModal">
     <div class="modal-content" style="max-width: 500px; max-height: 80vh; display: flex; flex-direction: column;">
+        <button class="modal-x-close" onclick="closeModal('notificationsModal')" title="Zavřít">✕</button>
         <h2>Oznámení</h2>
         <div id="notifList" style="overflow-y: auto; flex: 1; margin-top: 10px;"></div>
         <div class="modal-actions">
@@ -221,9 +303,10 @@
     </div>
 </div>
 
-<!-- rate modal -->
+<!-- rate modal – NEKONČÍ kliknutím bokem -->
 <div class="modal" id="rateModal">
     <div class="modal-content">
+        <button class="modal-x-close" onclick="closeModal('rateModal')" title="Zavřít">✕</button>
         <h2>Ohodnotit prodejce</h2>
         <input type="hidden" id="rateOrderId">
         <input type="hidden" id="rateSellerId">
@@ -245,9 +328,10 @@
     </div>
 </div>
 
-<!-- chat modal -->
+<!-- chat modal – NEKONČÍ kliknutím bokem -->
 <div class="modal" id="chatModal">
     <div class="modal-content">
+        <button class="modal-x-close" onclick="closeModal('chatModal')" title="Zavřít">✕</button>
         <h2>Komunita</h2>
         <div id="chatBox"></div>
         <div class="chat-input-row">

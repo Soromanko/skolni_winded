@@ -6,27 +6,66 @@ let currentUser = null;
 
 // ── TOAST ──
 function showToast(msg) {
-    const t = document.getElementById('toast');
+    var t = document.getElementById('toast');
     t.textContent = msg;
     t.classList.add('show');
-    setTimeout(() => t.classList.remove('show'), 2800);
+    setTimeout(function() { t.classList.remove('show'); }, 2800);
 }
 
 // ── MODAL HELPERS ──
 function openModal(id)  { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
-function openLogin()  { openModal('loginModal'); }
-function openAdd()    {
+// Modaly se NEZAVÍRAJÍ kliknutím na pozadí – uživatel musí použít křížek nebo tlačítko Zrušit
+var backdropCloseIds = [];
+
+document.querySelectorAll('.modal').forEach(function(m) {
+    m.addEventListener('click', function(e) {
+        if (e.target === m && backdropCloseIds.indexOf(m.id) !== -1) {
+            closeModal(m.id);
+        }
+    });
+});
+
+// ── PROFILE DROPDOWN ──
+function toggleProfileMenu() {
+    var wrap = document.getElementById('profileDropWrap');
+    wrap.classList.toggle('open');
+}
+
+function closeProfileMenu() {
+    var wrap = document.getElementById('profileDropWrap');
+    if (wrap) wrap.classList.remove('open');
+}
+
+// Zavřít dropdown při kliknutí kdekoliv jinde
+document.addEventListener('click', function(e) {
+    var wrap = document.getElementById('profileDropWrap');
+    if (wrap && !wrap.contains(e.target)) {
+        closeProfileMenu();
+    }
+});
+
+// ── MODALY PRO PŘIHLÁŠENÍ / REGISTRACI ──
+function openLogin() {
+    // Vyčistit formulář, aby se nezobrazovaly údaje předchozího uživatele
+    document.getElementById('loginEmail').value    = '';
+    document.getElementById('loginPassword').value = '';
+    openModal('loginModal');
+}
+
+function openAdd() {
     if (!currentUser) { showToast('Pro přidání se přihlaste.'); openLogin(); return; }
     openModal('addModal');
 }
-function openChat()   { openModal('chatModal'); loadChat(); }
 
-// Close modal on backdrop click
-document.querySelectorAll('.modal').forEach(function(m) {
-    m.addEventListener('click', function(e) { if (e.target === m) closeModal(m.id); });
-});
+function openChat() { openModal('chatModal'); loadChat(); }
+
+function openForgotPassword() {
+    closeModal('loginModal');
+    document.getElementById('forgotEmail').value = '';
+    openModal('forgotPasswordModal');
+}
 
 // ── AUTH ──
 function login() {
@@ -46,7 +85,7 @@ function login() {
             currentUser = data;
             showLoggedInButtons();
             closeModal('loginModal');
-            showToast('Vítejte zpět, ' + data.jmeno);
+            showToast('Vítejte zpět, ' + data.jmeno + '!');
             loadNotifications();
         })
         .catch(function() { showToast('Chyba připojení.'); });
@@ -70,7 +109,7 @@ function register() {
             currentUser = data;
             showLoggedInButtons();
             closeModal('registerModal');
-            showToast('Účet vytvořen! Vítejte, ' + data.jmeno);
+            showToast('Účet vytvořen! Vítejte, ' + data.jmeno + '!');
             loadNotifications();
         })
         .catch(function() { showToast('Chyba připojení.'); });
@@ -83,40 +122,127 @@ function logout() {
             cart = [];
             updateCart();
             hideLoggedInButtons();
+            clearUserForms();
             showToast('Odhlášeno.');
         });
 }
 
+// Vyčistit formuláře po odhlášení, aby je neviděl příští uživatel
+function clearUserForms() {
+    ['loginEmail','loginPassword','regJmeno','regEmail','regPassword'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    clearShippingForm();
+}
+
+function clearShippingForm() {
+    ['shipJmeno','shipPrijmeni','shipAdresa','shipTelefon'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+}
+
 function switchToRegister() {
     closeModal('loginModal');
+    document.getElementById('regJmeno').value    = '';
+    document.getElementById('regEmail').value    = '';
+    document.getElementById('regPassword').value = '';
     openModal('registerModal');
 }
 
 function switchToLogin() {
     closeModal('registerModal');
-    openModal('loginModal');
+    openLogin();
 }
 
 function showLoggedInButtons() {
-    document.getElementById('notifBtn').style.display = '';
-    document.getElementById('myOrdersBtn').style.display = '';
-    document.getElementById('myListingsBtn').style.display = '';
-    document.getElementById('loginBtn').textContent = '👤 ' + currentUser.jmeno;
-    document.getElementById('loginBtn').onclick = logout;
+    document.getElementById('notifBtn').style.display      = '';
+    document.getElementById('loginBtn').style.display      = 'none';
+    document.getElementById('profileDropWrap').style.display = '';
+    document.getElementById('profileName').textContent     = currentUser.jmeno;
 }
+
 function hideLoggedInButtons() {
-    document.getElementById('notifBtn').style.display = 'none';
-    document.getElementById('myOrdersBtn').style.display = 'none';
-    document.getElementById('myListingsBtn').style.display = 'none';
-    document.getElementById('notif-count').style.display = 'none';
-    document.getElementById('loginBtn').textContent = 'Přihlásit';
-    document.getElementById('loginBtn').onclick = openLogin;
+    document.getElementById('notifBtn').style.display      = 'none';
+    document.getElementById('notif-count').style.display   = 'none';
+    document.getElementById('loginBtn').style.display      = '';
+    document.getElementById('profileDropWrap').style.display = 'none';
+}
+
+// ── ZAPOMENUTÉ / RESET HESLA ──
+function sendForgotPassword() {
+    var email = document.getElementById('forgotEmail').value.trim();
+    if (!email) { showToast('Zadejte svůj e-mail.'); return; }
+
+    fetch('api.php?action=forgot_password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email })
+    })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            closeModal('forgotPasswordModal');
+            showToast('Pokud účet existuje, odeslali jsme resetovací odkaz na váš e-mail.');
+        })
+        .catch(function() { showToast('Chyba připojení.'); });
+}
+
+function submitResetPassword() {
+    var token = document.getElementById('resetToken').value;
+    var pass1 = document.getElementById('resetPassword').value;
+    var pass2 = document.getElementById('resetPassword2').value;
+
+    if (!token) { showToast('Neplatný token.'); return; }
+    if (pass1.length < 6) { showToast('Heslo musí mít alespoň 6 znaků.'); return; }
+    if (pass1 !== pass2) { showToast('Hesla se neshodují.'); return; }
+
+    fetch('api.php?action=reset_password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: token, password: pass1 })
+    })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            if (data.error) { showToast(data.error); return; }
+            closeModal('resetPasswordModal');
+            // Vyčistit token z URL bez přesměrování
+            window.history.replaceState({}, document.title, window.location.pathname);
+            showToast('Heslo bylo úspěšně změněno. Nyní se přihlaste.');
+            openLogin();
+        })
+        .catch(function() { showToast('Chyba připojení.'); });
 }
 
 // ── PRODUCTS ──
-function loadProducts(q) {
+var currentFilters = { stav: '', sort: 'newest' };
+
+function setStavFilter(val, btn) {
+    currentFilters.stav = val;
+    btn.closest('.filter-group').querySelectorAll('.filter-chip').forEach(function(b) {
+        b.classList.remove('active');
+    });
+    btn.classList.add('active');
+    loadProducts();
+}
+
+function setSortFilter(val, btn) {
+    currentFilters.sort = val;
+    btn.closest('.filter-group').querySelectorAll('.filter-chip').forEach(function(b) {
+        b.classList.remove('active');
+    });
+    btn.classList.add('active');
+    loadProducts();
+}
+
+function loadProducts() {
+    var searchEl = document.getElementById('search');
+    var q = searchEl ? searchEl.value.trim() : '';
     var url = 'api.php?action=products';
-    if (q) url += '&q=' + encodeURIComponent(q);
+    if (q)                        url += '&q='    + encodeURIComponent(q);
+    if (currentFilters.stav)      url += '&stav=' + encodeURIComponent(currentFilters.stav);
+    if (currentFilters.sort && currentFilters.sort !== 'newest')
+        url += '&sort=' + encodeURIComponent(currentFilters.sort);
 
     fetch(url)
         .then(function(res) { return res.json(); })
@@ -146,9 +272,9 @@ function createCard(p) {
         : '';
 
     var meta = '';
-    if (p.brand) meta += '<span class="card-meta">' + escapeHtml(p.brand) + '</span> ';
+    if (p.brand)         meta += '<span class="card-meta">' + escapeHtml(p.brand) + '</span> ';
     if (p.condition_val) meta += '<span class="card-meta card-condition">' + (conditionLabels[p.condition_val] || p.condition_val) + '</span>';
-    if (p.isbn) meta += '<span class="card-meta">ISBN: ' + escapeHtml(p.isbn) + '</span>';
+    if (p.isbn)          meta += '<span class="card-meta">ISBN: ' + escapeHtml(p.isbn) + '</span>';
 
     return '<div class="card" data-id="' + p.id + '">' +
         '<div class="card-img-wrap">' + imgHtml + '</div>' +
@@ -177,14 +303,27 @@ function renderProducts(list) {
 }
 
 function filterProducts() {
-    var q = document.getElementById('search').value.trim();
-    loadProducts(q);
+    loadProducts();
 }
 
 // ── CART ──
 function addToCart(id) {
     var item = products.find(function(p) { return p.id == id; });
     if (!item) return;
+
+    // Zamezit přidání vlastního inzerátu do košíku
+    if (currentUser && item.seller_id == currentUser.id) {
+        showToast('Nemůžete přidat vlastní inzerát do košíku.');
+        return;
+    }
+
+    // Zamezit duplicitě (jedna nabídka = jedno zboží)
+    var already = cart.find(function(c) { return c.id == id; });
+    if (already) {
+        showToast('Tato kniha je již v košíku.');
+        return;
+    }
+
     cart.push(item);
     updateCart();
     showToast('"' + item.title + '" přidáno do košíku');
@@ -224,6 +363,8 @@ function checkout() {
     if (cart.length === 0) { showToast('Košík je prázdný.'); return; }
     if (!currentUser)      { showToast('Pro objednávku se přihlaste.'); openLogin(); return; }
     toggleCart();
+    // Vyčistit formulář – každý uživatel začíná s prázdným formulářem
+    clearShippingForm();
     openModal('shippingModal');
 }
 
@@ -238,27 +379,33 @@ function submitCheckout() {
         return;
     }
 
+    // Sestavit seznam položek jako pole ID nabídek
+    var items = cart.map(function(item) {
+        return { id: item.id, title: item.title };
+    });
+
     fetch('api.php?action=checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            items: cart,
-            jmeno: jmeno,
+            items:    items,
+            jmeno:    jmeno,
             prijmeni: prijmeni,
-            adresa: adresa,
-            telefon: telefon
+            adresa:   adresa,
+            telefon:  telefon
         })
     })
         .then(function(res) { return res.json(); })
         .then(function(data) {
             if (data.error) { showToast(data.error); return; }
             showToast('Objednávka odeslána! ✓');
+            if (data.warnings && data.warnings.length) {
+                setTimeout(function() { showToast(data.warnings[0]); }, 3000);
+            }
             cart = [];
             updateCart();
             closeModal('shippingModal');
-            ['shipJmeno','shipPrijmeni','shipAdresa','shipTelefon'].forEach(function(id) {
-                document.getElementById(id).value = '';
-            });
+            clearShippingForm();
             loadProducts();
             loadNotifications();
         })
@@ -276,6 +423,7 @@ function addItem() {
     var file  = document.getElementById('image').files[0];
 
     if (!title || !price) { showToast('Vyplňte název a cenu.'); return; }
+    if (parseFloat(price) <= 0) { showToast('Cena musí být větší než 0.'); return; }
 
     var formData = new FormData();
     formData.append('title', title);
@@ -297,9 +445,9 @@ function addItem() {
             ['title', 'price', 'desc', 'brand', 'isbn'].forEach(function(id) {
                 document.getElementById(id).value = '';
             });
-            document.getElementById('stav').value = 'pouzity';
+            document.getElementById('stav').value  = 'pouzity';
             document.getElementById('image').value = '';
-            showToast('Kniha přidána!');
+            showToast('Kniha přidána! 📚');
             loadProducts();
         })
         .catch(function() { showToast('Chyba při přidávání knihy.'); });
@@ -357,7 +505,7 @@ function openMyListings() {
             var stavLabels = { 'aktivni':'Aktivní', 'prodano':'Prodáno', 'zruseno':'Zrušeno' };
             var html = '';
             if (!data.length) {
-                html = '<p style="color:var(--ink);text-align:center;padding:32px 0;">Žádné inzeráty.</p>';
+                html = '<p style="color:var(--ink);text-align:center;padding:32px 0;">Žádné inzeráty. Přidejte první knihu!</p>';
             } else {
                 data.forEach(function(l) {
                     var badge = l.stav === 'prodano'
@@ -391,9 +539,9 @@ function loadNotifications() {
         .then(function(res) { return res.json(); })
         .then(function(data) {
             var unread = data.filter(function(n) { return !parseInt(n.precteno); }).length;
-            var badge = document.getElementById('notif-count');
+            var badge  = document.getElementById('notif-count');
             if (unread > 0) {
-                badge.textContent = unread;
+                badge.textContent  = unread;
                 badge.style.display = '';
             } else {
                 badge.style.display = 'none';
@@ -408,14 +556,15 @@ function loadNotifications() {
                     html += '<div class="notif-row' + (parseInt(n.precteno) ? '' : ' notif-unread') + '">' +
                         '<span style="font-size:1.3rem;">' + (typIcons[n.typ] || '🔔') + '</span>' +
                         '<div style="flex:1;">' +
-                        '<div style="font-size:.88rem;">' + n.text + '</div>' +
+                        '<div style="font-size:.88rem;">' + escapeHtml(n.text) + '</div>' +
                         '<div style="font-size:.75rem;color:#aaa;">' + n.vytvoreno + '</div>' +
                         '</div>' +
                         '</div>';
                 });
             }
             document.getElementById('notifList').innerHTML = html;
-        });
+        })
+        .catch(function() {});
 }
 
 function openNotifications() {
@@ -448,10 +597,10 @@ document.getElementById('starPicker').addEventListener('click', function(e) {
 });
 
 function submitRating() {
-    var orderId   = parseInt(document.getElementById('rateOrderId').value);
-    var sellerId  = parseInt(document.getElementById('rateSellerId').value);
-    var rating    = parseInt(document.getElementById('rateValue').value);
-    var comment   = document.getElementById('rateComment').value.trim();
+    var orderId  = parseInt(document.getElementById('rateOrderId').value);
+    var sellerId = parseInt(document.getElementById('rateSellerId').value);
+    var rating   = parseInt(document.getElementById('rateValue').value);
+    var comment  = document.getElementById('rateComment').value.trim();
 
     if (rating < 1 || rating > 5) { showToast('Vyberte hodnocení (1–5 hvězdiček).'); return; }
 
@@ -481,6 +630,8 @@ function loadChat() {
 }
 
 function sendMessage() {
+    if (!currentUser) { showToast('Pro psaní zpráv se přihlaste.'); return; }
+
     var input = document.getElementById('chatInput');
     var text  = input.value.trim();
     if (!text) return;
@@ -515,15 +666,28 @@ function renderChat() {
 }
 
 // ── INIT ──
+// Zkontrolovat, zda URL obsahuje reset_token pro obnovu hesla
+(function checkResetToken() {
+    var params = new URLSearchParams(window.location.search);
+    var token  = params.get('reset_token');
+    if (token) {
+        document.getElementById('resetToken').value = token;
+        document.getElementById('resetPassword').value  = '';
+        document.getElementById('resetPassword2').value = '';
+        openModal('resetPasswordModal');
+    }
+})();
+
 fetch('api.php?action=me')
     .then(function(res) { return res.json(); })
     .then(function(data) {
-        if (data) {
+        if (data && data.id) {
             currentUser = data;
             showLoggedInButtons();
             loadNotifications();
         }
-    });
+    })
+    .catch(function() {});
 
 loadProducts();
 updateCart();

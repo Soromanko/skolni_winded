@@ -8,7 +8,30 @@ $action = isset($_GET['action']) ? $_GET['action'] : '';
 
 // ── PRODUCTS LIST ──
 if ($action === 'products') {
-    $q = isset($_GET['q']) ? '%' . $_GET['q'] . '%' : '%';
+    $q    = isset($_GET['q'])    ? '%' . $_GET['q'] . '%' : '%';
+    $stav = isset($_GET['stav']) ? trim($_GET['stav'])    : '';
+    $sort = isset($_GET['sort']) ? trim($_GET['sort'])    : 'newest';
+
+    $allowed_stav = array('novy', 'pouzity', 'poskozeny');
+    $allowed_sort = array('newest', 'price_asc', 'price_desc');
+    if (!in_array($stav, $allowed_stav)) $stav = '';
+    if (!in_array($sort, $allowed_sort)) $sort = 'newest';
+
+    $where  = "WHERE n.stav_nabidky = 'aktivni'
+                 AND (p.nazev LIKE :q OR p.popis LIKE :q OR p.znacka LIKE :q OR p.isbn LIKE :q)";
+    $params = array(':q' => $q);
+
+    if ($stav !== '') {
+        $where .= " AND p.stav = :stav";
+        $params[':stav'] = $stav;
+    }
+
+    $orderBy = match($sort) {
+        'price_asc'  => 'ORDER BY n.cena ASC',
+        'price_desc' => 'ORDER BY n.cena DESC',
+        default      => 'ORDER BY n.datum DESC',
+    };
+
     $stmt = $pdo->prepare(
         "SELECT n.nabidka_id AS id,
                 p.nazev      AS title,
@@ -29,11 +52,9 @@ if ($action === 'products') {
                  WHERE f2.nabidka_id = Fotka.nabidka_id
              )
          ) f ON f.nabidka_id = n.nabidka_id
-         WHERE  n.stav_nabidky = 'aktivni'
-           AND  (p.nazev LIKE :q OR p.popis LIKE :q)
-         ORDER BY n.datum DESC"
+         $where $orderBy"
     );
-    $stmt->execute(array(':q' => $q));
+    $stmt->execute($params);
     echo json_encode($stmt->fetchAll());
     exit;
 }
@@ -59,7 +80,7 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         echo json_encode(array('error' => 'Účet nenalezen. Zaregistrujte se prosím.'));
     } elseif (password_verify($pass, $user['heslo'])) {
         $_SESSION['user'] = array('id' => $user['uzivatel_id'], 'email' => $user['email'], 'jmeno' => $user['jmeno']);
-        echo json_encode(array('status' => 'ok', 'email' => $user['email'], 'jmeno' => $user['jmeno']));
+        echo json_encode(array('status' => 'ok', 'id' => $user['uzivatel_id'], 'email' => $user['email'], 'jmeno' => $user['jmeno']));
     } else {
         http_response_code(401);
         echo json_encode(array('error' => 'Špatné heslo.'));
@@ -96,7 +117,7 @@ if ($action === 'register' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $ins->execute(array(':jmeno' => $jmeno, ':email' => $email, ':heslo' => $hash));
     $userId = $pdo->lastInsertId();
     $_SESSION['user'] = array('id' => $userId, 'email' => $email, 'jmeno' => $jmeno);
-    echo json_encode(array('status' => 'registered', 'email' => $email, 'jmeno' => $jmeno));
+    echo json_encode(array('status' => 'registered', 'id' => $userId, 'email' => $email, 'jmeno' => $jmeno));
     exit;
 }
 
@@ -114,6 +135,98 @@ if ($action === 'me') {
     } else {
         echo json_encode(null);
     }
+    exit;
+}
+
+// ── FORGOT PASSWORD ──
+if ($action === 'forgot_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $body  = json_decode(file_get_contents('php://input'), true);
+    $email = isset($body['email']) ? trim($body['email']) : '';
+
+    if (!$email) {
+        http_response_code(400);
+        echo json_encode(array('error' => 'Zadejte e-mail.'));
+        exit;
+    }
+
+    $stmt = $pdo->prepare("SELECT uzivatel_id, jmeno FROM Uzivatel WHERE email = :email");
+    $stmt->execute(array(':email' => $email));
+    $user = $stmt->fetch();
+
+    // Vždy vrátíme OK, aby nebylo možné zjistit, zda email existuje
+    if ($user) {
+        $token = bin2hex(random_bytes(32));
+        $expiry = date('Y-m-d H:i:s', strtotime('+1 hour'));
+
+        // Zneplatnit staré tokeny tohoto uživatele
+        $pdo->prepare("UPDATE PasswordReset SET pouzito = 1 WHERE uzivatel_id = :uid AND pouzito = 0")
+            ->execute(array(':uid' => $user['uzivatel_id']));
+
+        $ins = $pdo->prepare(
+            "INSERT INTO PasswordReset (uzivatel_id, token, expiry) VALUES (:uid, :token, :expiry)"
+        );
+        $ins->execute(array(':uid' => $user['uzivatel_id'], ':token' => $token, ':expiry' => $expiry));
+
+        // Sestavit odkaz – přizpůsobit doménu podle nasazení
+        $resetLink = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http')
+            . '://' . $_SERVER['HTTP_HOST']
+            . strtok($_SERVER['REQUEST_URI'], '?')
+            . '?reset_token=' . $token;
+
+        $subject = '=?UTF-8?B?' . base64_encode('Resetování hesla – WINDED') . '?=';
+        $message  = "Dobrý den, " . $user['jmeno'] . ",\n\n";
+        $message .= "Pro resetování hesla klikněte na odkaz níže (platný 1 hodinu):\n\n";
+        $message .= $resetLink . "\n\n";
+        $message .= "Pokud jste o reset nepožádali, ignorujte tento e-mail.\n\nWINDED Marketplace";
+        $headers  = implode("\r\n", array(
+            'From: WINDED Marketplace <noreply@' . $_SERVER['HTTP_HOST'] . '>',
+            'Reply-To: noreply@' . $_SERVER['HTTP_HOST'],
+            'Content-Type: text/plain; charset=UTF-8',
+            'MIME-Version: 1.0',
+            'X-Mailer: PHP/' . phpversion(),
+        ));
+        $mailSent = mail($email, $subject, $message, $headers);
+        // Poznámka: mail() vyžaduje nakonfigurovaný MTA (sendmail/postfix) nebo php.ini [SMTP] na Windows.
+        // Pro spolehlivé odesílání e-mailů použijte PHPMailer s SMTP (smtp.gmail.com apod.).
+    }
+
+    echo json_encode(array('status' => 'ok'));
+    exit;
+}
+
+// ── RESET PASSWORD ──
+if ($action === 'reset_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $body     = json_decode(file_get_contents('php://input'), true);
+    $token    = isset($body['token'])    ? trim($body['token'])    : '';
+    $password = isset($body['password']) ? $body['password']       : '';
+
+    if (!$token || strlen($password) < 6) {
+        http_response_code(400);
+        echo json_encode(array('error' => 'Neplatný token nebo heslo je příliš krátké (min. 6 znaků).'));
+        exit;
+    }
+
+    $stmt = $pdo->prepare(
+        "SELECT r.reset_id, r.uzivatel_id FROM PasswordReset r
+         WHERE r.token = :token AND r.pouzito = 0 AND r.expiry > NOW()"
+    );
+    $stmt->execute(array(':token' => $token));
+    $row = $stmt->fetch();
+
+    if (!$row) {
+        http_response_code(400);
+        echo json_encode(array('error' => 'Token je neplatný nebo vypršel. Požádejte o nový reset.'));
+        exit;
+    }
+
+    $hash = password_hash($password, PASSWORD_BCRYPT);
+    $pdo->prepare("UPDATE Uzivatel SET heslo = :heslo WHERE uzivatel_id = :uid")
+        ->execute(array(':heslo' => $hash, ':uid' => $row['uzivatel_id']));
+
+    $pdo->prepare("UPDATE PasswordReset SET pouzito = 1 WHERE reset_id = :rid")
+        ->execute(array(':rid' => $row['reset_id']));
+
+    echo json_encode(array('status' => 'ok'));
     exit;
 }
 
@@ -211,12 +324,12 @@ if ($action === 'checkout' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    $body    = json_decode(file_get_contents('php://input'), true);
-    $items   = isset($body['items'])   ? $body['items']   : array();
-    $jmeno   = isset($body['jmeno'])   ? trim($body['jmeno'])   : '';
-    $prijmeni= isset($body['prijmeni'])? trim($body['prijmeni']): '';
-    $adresa  = isset($body['adresa'])  ? trim($body['adresa'])  : '';
-    $telefon = isset($body['telefon']) ? trim($body['telefon']) : '';
+    $body     = json_decode(file_get_contents('php://input'), true);
+    $items    = isset($body['items'])    ? $body['items']           : array();
+    $jmeno    = isset($body['jmeno'])    ? trim($body['jmeno'])     : '';
+    $prijmeni = isset($body['prijmeni']) ? trim($body['prijmeni'])  : '';
+    $adresa   = isset($body['adresa'])   ? trim($body['adresa'])    : '';
+    $telefon  = isset($body['telefon'])  ? trim($body['telefon'])   : '';
 
     if (empty($items)) {
         http_response_code(400);
@@ -225,64 +338,151 @@ if ($action === 'checkout' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if (!$jmeno || !$prijmeni || !$adresa) {
         http_response_code(400);
-        echo json_encode(array('error' => 'Vyplňte doručovací údaje.'));
+        echo json_encode(array('error' => 'Vyplňte jméno, příjmení a adresu.'));
         exit;
     }
 
-    if ($telefon) {
-        $updUser = $pdo->prepare("UPDATE Uzivatel SET telefon = :tel WHERE uzivatel_id = :uid");
-        $updUser->execute(array(':tel' => $telefon, ':uid' => $_SESSION['user']['id']));
-    }
-
-    $ins = $pdo->prepare(
-        "INSERT INTO Objednavka (nabidka_id, kupujici_id, jmeno, prijmeni, adresa) 
-         VALUES (:nid, :uid, :jmeno, :prijmeni, :adresa)"
-    );
-    $upd = $pdo->prepare(
-        "UPDATE Nabidka SET stav_nabidky = 'prodano' WHERE nabidka_id = :nid"
-    );
-    $linkOrder = $pdo->prepare(
-        "UPDATE Nabidka SET objednavka_id = :oid WHERE nabidka_id = :nid"
-    );
-    $sellerStmt = $pdo->prepare("SELECT uzivatel_id FROM Nabidka WHERE nabidka_id = :nid");
-
-    $notifIns = $pdo->prepare(
-        "INSERT INTO Notifikace (uzivatel_id, typ, text) VALUES (:uid, :typ, :text)"
-    );
-
+    $buyerId   = (int)$_SESSION['user']['id'];
     $buyerName = $jmeno . ' ' . $prijmeni;
 
-    foreach ($items as $item) {
-        $nid = intval($item['id']);
-        $ins->execute(array(
-            ':nid' => $nid,
-            ':uid' => $_SESSION['user']['id'],
-            ':jmeno' => $jmeno,
-            ':prijmeni' => $prijmeni,
-            ':adresa' => $adresa
-        ));
-        $orderId = $pdo->lastInsertId();
+    // Získat e-mail kupujícího pro potvrzovací e-mail
+    $buyerEmailStmt = $pdo->prepare("SELECT email FROM Uzivatel WHERE uzivatel_id = :uid");
+    $buyerEmailStmt->execute(array(':uid' => $buyerId));
+    $buyerEmailRow = $buyerEmailStmt->fetch();
+    $buyerEmail = $buyerEmailRow ? $buyerEmailRow['email'] : '';
 
-        $upd->execute(array(':nid' => $nid));
-        $linkOrder->execute(array(':oid' => $orderId, ':nid' => $nid));
-
-        $sellerStmt->execute(array(':nid' => $nid));
-        $sellerRow = $sellerStmt->fetch();
-        if ($sellerRow) {
-            $notifIns->execute(array(
-                ':uid'  => $sellerRow['uzivatel_id'],
-                ':typ'  => 'prodej',
-                ':text' => 'Vaše nabídka "' . htmlspecialchars($item['title']) . '" byla zakoupena uživatelem ' . htmlspecialchars($buyerName) . '. Adresa: ' . htmlspecialchars($adresa) . '.',
-            ));
-        }
-        $notifIns->execute(array(
-            ':uid'  => $_SESSION['user']['id'],
-            ':typ'  => 'nakup',
-            ':text' => 'Vaše objednávka "' . htmlspecialchars($item['title']) . '" byla přijata. Doručíme na: ' . htmlspecialchars($adresa) . '.',
-        ));
+    if ($telefon) {
+        $pdo->prepare("UPDATE Uzivatel SET telefon = :tel WHERE uzivatel_id = :uid")
+            ->execute(array(':tel' => $telefon, ':uid' => $buyerId));
     }
 
-    echo json_encode(array('status' => 'ok'));
+    $errors   = array();
+    $ordered  = array();
+
+    try {
+        $pdo->beginTransaction();
+
+        $checkStmt = $pdo->prepare(
+            "SELECT stav_nabidky, uzivatel_id FROM Nabidka WHERE nabidka_id = :nid FOR UPDATE"
+        );
+        $insOrder = $pdo->prepare(
+            "INSERT INTO Objednavka (nabidka_id, kupujici_id, jmeno, prijmeni, adresa)
+             VALUES (:nid, :uid, :jmeno, :prijmeni, :adresa)"
+        );
+        $updNabidka = $pdo->prepare(
+            "UPDATE Nabidka SET stav_nabidky = 'prodano', objednavka_id = :oid WHERE nabidka_id = :nid"
+        );
+        $sellerStmt = $pdo->prepare(
+            "SELECT u.uzivatel_id, u.jmeno, u.email FROM Nabidka n
+             JOIN Uzivatel u ON u.uzivatel_id = n.uzivatel_id
+             WHERE n.nabidka_id = :nid"
+        );
+        $notifIns = $pdo->prepare(
+            "INSERT INTO Notifikace (uzivatel_id, typ, text) VALUES (:uid, :typ, :text)"
+        );
+
+        foreach ($items as $item) {
+            $nid = intval($item['id']);
+            if ($nid <= 0) continue;
+
+            // Zkontrolovat dostupnost a zabránit nákupu vlastního inzerátu
+            $checkStmt->execute(array(':nid' => $nid));
+            $nabRow = $checkStmt->fetch();
+
+            if (!$nabRow) {
+                $errors[] = 'Položka "' . htmlspecialchars($item['title']) . '" nebyla nalezena.';
+                continue;
+            }
+            if ($nabRow['stav_nabidky'] !== 'aktivni') {
+                $errors[] = 'Položka "' . htmlspecialchars($item['title']) . '" již není dostupná.';
+                continue;
+            }
+            if ((int)$nabRow['uzivatel_id'] === $buyerId) {
+                $errors[] = 'Nemůžete koupit vlastní inzerát "' . htmlspecialchars($item['title']) . '".';
+                continue;
+            }
+
+            // Vložit objednávku
+            $insOrder->execute(array(
+                ':nid'      => $nid,
+                ':uid'      => $buyerId,
+                ':jmeno'    => $jmeno,
+                ':prijmeni' => $prijmeni,
+                ':adresa'   => $adresa,
+            ));
+            $orderId = $pdo->lastInsertId();
+
+            // Označit nabídku jako prodanou a propojit s objednávkou
+            $updNabidka->execute(array(':oid' => $orderId, ':nid' => $nid));
+
+            $ordered[] = array('title' => $item['title'], 'order_id' => $orderId);
+
+            // Notifikace a e-mail prodejci
+            $sellerStmt->execute(array(':nid' => $nid));
+            $sellerRow = $sellerStmt->fetch();
+            if ($sellerRow) {
+                $notifIns->execute(array(
+                    ':uid'  => $sellerRow['uzivatel_id'],
+                    ':typ'  => 'prodej',
+                    ':text' => 'Vaše nabídka "' . htmlspecialchars($item['title']) . '" byla zakoupena uživatelem '
+                        . htmlspecialchars($buyerName) . '. Adresa doručení: ' . htmlspecialchars($adresa) . '.',
+                ));
+
+                if (!empty($sellerRow['email'])) {
+                    $subj = '=?UTF-8?B?' . base64_encode('Vaše nabídka byla prodána – WINDED') . '?=';
+                    $msg  = "Dobrý den, " . $sellerRow['jmeno'] . ",\n\n"
+                        . "Vaše nabídka \"" . $item['title'] . "\" byla zakoupena.\n"
+                        . "Kupující: " . $buyerName . "\n"
+                        . "Adresa doručení: " . $adresa . "\n"
+                        . ($telefon ? "Telefon: " . $telefon . "\n" : '')
+                        . "\nWINDED Marketplace";
+                    @mail($sellerRow['email'], $subj, $msg,
+                        'From: noreply@winded.cz' . "\r\n" . 'Content-Type: text/plain; charset=UTF-8');
+                }
+            }
+
+            // Notifikace kupujícímu
+            $notifIns->execute(array(
+                ':uid'  => $buyerId,
+                ':typ'  => 'nakup',
+                ':text' => 'Vaše objednávka "' . htmlspecialchars($item['title']) . '" byla přijata. Doručíme na: '
+                    . htmlspecialchars($adresa) . '.',
+            ));
+        }
+
+        $pdo->commit();
+
+        // Potvrzovací e-mail kupujícímu (jednou za celou objednávku)
+        if (!empty($ordered) && !empty($buyerEmail)) {
+            $titles = implode(', ', array_column($ordered, 'title'));
+            $subj = '=?UTF-8?B?' . base64_encode('Potvrzení objednávky – WINDED') . '?=';
+            $msg  = "Dobrý den, " . $jmeno . ",\n\n"
+                . "Děkujeme za objednávku na WINDED!\n\n"
+                . "Objednané položky: " . $titles . "\n"
+                . "Adresa doručení: " . $adresa . "\n\n"
+                . "WINDED Marketplace";
+            @mail($buyerEmail, $subj, $msg,
+                'From: noreply@winded.cz' . "\r\n" . 'Content-Type: text/plain; charset=UTF-8');
+        }
+
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        http_response_code(500);
+        echo json_encode(array('error' => 'Chyba při zpracování objednávky: ' . $e->getMessage()));
+        exit;
+    }
+
+    if (empty($ordered) && !empty($errors)) {
+        http_response_code(400);
+        echo json_encode(array('error' => implode(' ', $errors)));
+        exit;
+    }
+
+    $response = array('status' => 'ok');
+    if (!empty($errors)) {
+        $response['warnings'] = $errors;
+    }
+    echo json_encode($response);
     exit;
 }
 
@@ -404,6 +604,15 @@ if ($action === 'rate' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Zkontrolovat duplicitu
+    $dupChk = $pdo->prepare("SELECT hodnoceni_id FROM Hodnoceni WHERE objednavka_id = :oid AND hodnotitel_id = :hid");
+    $dupChk->execute(array(':oid' => $objednavkaId, ':hid' => $_SESSION['user']['id']));
+    if ($dupChk->fetch()) {
+        http_response_code(409);
+        echo json_encode(array('error' => 'Tuto objednávku jste již hodnotili.'));
+        exit;
+    }
+
     $ins = $pdo->prepare(
         "INSERT INTO Hodnoceni (objednavka_id, hodnotitel_id, hodnoceny_id, komentar, rating)
          VALUES (:oid, :hid, :hcid, :kom, :rat)"
@@ -447,10 +656,16 @@ if ($action === 'chat') {
 
 // ── CHAT: SEND MESSAGE ──
 if ($action === 'chat_send' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!isset($_SESSION['user'])) {
+        http_response_code(401);
+        echo json_encode(array('error' => 'Pro psaní zpráv se přihlaste.'));
+        exit;
+    }
+
     $body = json_decode(file_get_contents('php://input'), true);
     $text = isset($body['text']) ? trim($body['text']) : '';
-    $user = isset($_SESSION['user']) ? $_SESSION['user']['jmeno'] : 'anon';
-    $uid  = isset($_SESSION['user']) ? $_SESSION['user']['id']    : null;
+    $user = $_SESSION['user']['jmeno'];
+    $uid  = $_SESSION['user']['id'];
 
     if (!$text) {
         http_response_code(400);
@@ -458,12 +673,10 @@ if ($action === 'chat_send' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    if ($uid) {
-        $ins = $pdo->prepare(
-            "INSERT INTO ChatZprava (uzivatel_id, zprava) VALUES (:uid, :zprava)"
-        );
-        $ins->execute(array(':uid' => $uid, ':zprava' => $text));
-    }
+    $ins = $pdo->prepare(
+        "INSERT INTO ChatZprava (uzivatel_id, zprava) VALUES (:uid, :zprava)"
+    );
+    $ins->execute(array(':uid' => $uid, ':zprava' => $text));
 
     $time = date('H:i');
     echo json_encode(array('status' => 'ok', 'user' => $user, 'text' => $text, 'time' => $time));

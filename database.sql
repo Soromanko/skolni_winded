@@ -134,6 +134,19 @@ CREATE TABLE IF NOT EXISTS Notifikace (
                                                   ON UPDATE CASCADE ON DELETE CASCADE
 );
 
+-- Tabulka pro resetování hesla
+CREATE TABLE IF NOT EXISTS PasswordReset (
+                                             reset_id     INT UNSIGNED    NOT NULL AUTO_INCREMENT,
+                                             uzivatel_id  INT UNSIGNED    NOT NULL,
+                                             token        VARCHAR(64)     NOT NULL UNIQUE,
+                                             expiry       DATETIME        NOT NULL,
+                                             pouzito      TINYINT(1)      NOT NULL DEFAULT 0,
+                                             PRIMARY KEY (reset_id),
+                                             CONSTRAINT fk_reset_uzivatel
+                                                 FOREIGN KEY (uzivatel_id) REFERENCES Uzivatel (uzivatel_id)
+                                                     ON UPDATE CASCADE ON DELETE CASCADE
+);
+
 CREATE INDEX idx_polozka_kategorie   ON Polozka    (kategorie_id);
 CREATE INDEX idx_nabidka_uzivatel    ON Nabidka    (uzivatel_id);
 CREATE INDEX idx_nabidka_polozka     ON Nabidka    (polozka_id);
@@ -144,3 +157,4 @@ CREATE INDEX idx_objednavka_kupujici ON Objednavka (kupujici_id);
 CREATE INDEX idx_hodnoceni_hodnoceny ON Hodnoceni  (hodnoceny_id);
 CREATE INDEX idx_chat_cas            ON ChatZprava (cas);
 CREATE INDEX idx_notifikace_uzivatel ON Notifikace (uzivatel_id);
+CREATE INDEX idx_reset_token         ON PasswordReset (token);
