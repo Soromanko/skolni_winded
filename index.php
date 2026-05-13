@@ -16,12 +16,9 @@
         <button class="btn btn-ghost notif-btn" id="notifBtn" onclick="openNotifications()" style="display:none;">
             🔔 <span class="notif-badge" id="notif-count" style="display:none;">0</span>
         </button>
-        <button class="btn btn-ghost" onclick="openChat()">Chat</button>
 
-        <!-- Tlačítko přihlásit (viditelné odhlášenému uživateli) -->
         <button class="btn btn-ghost" onclick="openLogin()" id="loginBtn">Přihlásit</button>
 
-        <!-- Profilové menu (viditelné přihlášenému uživateli) -->
         <div class="profile-drop-wrap" id="profileDropWrap" style="display:none;">
             <button class="btn btn-ghost profile-btn" id="profileBtn" onclick="toggleProfileMenu()">
                 👤 <span id="profileName"></span> <span class="profile-caret">▾</span>
@@ -34,9 +31,16 @@
             </div>
         </div>
 
-        <button class="btn btn-outline" onclick="toggleCart()">
-            Košík <span class="cart-badge" id="cart-count">0</span>
+        <!-- Košík ikona ve stylu Alza -->
+        <button class="cart-icon-btn" onclick="toggleCart()" title="Košík">
+            <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="9" cy="21" r="1"></circle>
+                <circle cx="20" cy="21" r="1"></circle>
+                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+            </svg>
+            <span class="cart-icon-badge" id="cart-count" style="display:none;">0</span>
         </button>
+
         <button class="btn btn-amber" onclick="openAdd()">+ Přidat</button>
     </div>
 </header>
@@ -46,12 +50,9 @@
     <h1>Učebnice levně</h1>
     <p>Nakupuj a prodávej staré učebnice přímo mezi studenty</p>
     <div class="hero-actions">
-        <button class="btn btn-amber" onclick="openAdd()">
-            Přidat učebnici
-        </button>
+        <button class="btn btn-amber" onclick="openAdd()">Přidat učebnici</button>
     </div>
 
-    <!-- Search přesunutý z navu + filtry -->
     <div class="hero-search-wrap">
         <span class="hero-search-icon">🔍</span>
         <input type="text" id="search" placeholder="Hledat název, autora, ISBN…" oninput="filterProducts()">
@@ -60,10 +61,10 @@
     <div class="hero-filters">
         <div class="filter-group">
             <span class="filter-label">Stav:</span>
-            <button class="filter-chip active" onclick="setStavFilter('', this)">Vše</button>
-            <button class="filter-chip" onclick="setStavFilter('novy', this)">Nový</button>
-            <button class="filter-chip" onclick="setStavFilter('pouzity', this)">Použitý</button>
-            <button class="filter-chip" onclick="setStavFilter('poskozeny', this)">Poškozený</button>
+            <button class="filter-chip active" onclick="toggleStavFilter('', this)">Vše</button>
+            <button class="filter-chip" onclick="toggleStavFilter('novy', this)">Nový</button>
+            <button class="filter-chip" onclick="toggleStavFilter('pouzity', this)">Použitý</button>
+            <button class="filter-chip" onclick="toggleStavFilter('poskozeny', this)">Poškozený</button>
         </div>
         <div class="filter-group">
             <span class="filter-label">Řadit:</span>
@@ -93,15 +94,21 @@
             <span>Celkem</span>
             <span id="cart-total">0 Kč</span>
         </div>
-        <button class="btn btn-amber" onclick="checkout()">
-            Objednat
-        </button>
+        <button class="btn btn-amber" onclick="checkout()">Objednat</button>
     </div>
 </div>
 
 <!-- ===================== MODALY ===================== -->
 
-<!-- login modal (zavírá se i kliknutím bokem) -->
+<!-- Detail nabídky -->
+<div class="modal" id="productDetailModal">
+    <div class="modal-content modal-content-wide">
+        <button class="modal-x-close" onclick="closeModal('productDetailModal')" title="Zavřít">✕</button>
+        <div id="productDetailBody"></div>
+    </div>
+</div>
+
+<!-- login modal -->
 <div class="modal" id="loginModal">
     <div class="modal-content">
         <button class="modal-x-close" onclick="closeModal('loginModal')" title="Zavřít">✕</button>
@@ -127,7 +134,7 @@
     </div>
 </div>
 
-<!-- register modal (zavírá se i kliknutím bokem) -->
+<!-- register modal -->
 <div class="modal" id="registerModal">
     <div class="modal-content">
         <button class="modal-x-close" onclick="closeModal('registerModal')" title="Zavřít">✕</button>
@@ -154,7 +161,7 @@
     </div>
 </div>
 
-<!-- forgot password modal (zavírá se i kliknutím bokem) -->
+<!-- forgot password modal -->
 <div class="modal" id="forgotPasswordModal">
     <div class="modal-content">
         <button class="modal-x-close" onclick="closeModal('forgotPasswordModal')" title="Zavřít">✕</button>
@@ -173,7 +180,7 @@
     </div>
 </div>
 
-<!-- reset password modal (otevírá se přes URL ?reset_token=...) -->
+<!-- reset password modal -->
 <div class="modal" id="resetPasswordModal">
     <div class="modal-content">
         <button class="modal-x-close" onclick="closeModal('resetPasswordModal')" title="Zavřít">✕</button>
@@ -194,7 +201,7 @@
     </div>
 </div>
 
-<!-- add modal (zavírá se i kliknutím bokem) -->
+<!-- add modal -->
 <div class="modal" id="addModal">
     <div class="modal-content">
         <button class="modal-x-close" onclick="closeModal('addModal')" title="Zavřít">✕</button>
@@ -238,7 +245,7 @@
     </div>
 </div>
 
-<!-- shipping modal – NEKONČÍ kliknutím bokem, jen křížkem -->
+<!-- shipping modal -->
 <div class="modal" id="shippingModal">
     <div class="modal-content">
         <button class="modal-x-close" onclick="closeModal('shippingModal')" title="Zavřít">✕</button>
@@ -266,44 +273,44 @@
     </div>
 </div>
 
-<!-- my orders modal – NEKONČÍ kliknutím bokem -->
+<!-- my orders modal -->
 <div class="modal" id="myOrdersModal">
-    <div class="modal-content" style="max-width: 600px; max-height: 80vh; display: flex; flex-direction: column;">
+    <div class="modal-content" style="max-width:600px;max-height:80vh;display:flex;flex-direction:column;">
         <button class="modal-x-close" onclick="closeModal('myOrdersModal')" title="Zavřít">✕</button>
         <h2>Moje objednávky</h2>
-        <div id="myOrdersList" style="overflow-y: auto; flex: 1; margin-top: 10px;"></div>
+        <div id="myOrdersList" style="overflow-y:auto;flex:1;margin-top:10px;"></div>
         <div class="modal-actions">
             <button class="btn btn-ghost" style="color:var(--ink);" onclick="closeModal('myOrdersModal')">Zavřít</button>
         </div>
     </div>
 </div>
 
-<!-- my listings modal – NEKONČÍ kliknutím bokem -->
+<!-- my listings modal -->
 <div class="modal" id="myListingsModal">
-    <div class="modal-content" style="max-width: 600px; max-height: 80vh; display: flex; flex-direction: column;">
+    <div class="modal-content" style="max-width:600px;max-height:80vh;display:flex;flex-direction:column;">
         <button class="modal-x-close" onclick="closeModal('myListingsModal')" title="Zavřít">✕</button>
         <h2>Moje inzeráty</h2>
-        <div id="myListingsList" style="overflow-y: auto; flex: 1; margin-top: 10px;"></div>
-        <div class="modal-actions" style="justify-content: space-between;">
+        <div id="myListingsList" style="overflow-y:auto;flex:1;margin-top:10px;"></div>
+        <div class="modal-actions" style="justify-content:space-between;">
             <button class="btn btn-amber" onclick="closeModal('myListingsModal'); openAdd();">+ Přidat inzerát</button>
             <button class="btn btn-ghost" style="color:var(--ink);" onclick="closeModal('myListingsModal')">Zavřít</button>
         </div>
     </div>
 </div>
 
-<!-- notifications modal – NEKONČÍ kliknutím bokem -->
+<!-- notifications modal -->
 <div class="modal" id="notificationsModal">
-    <div class="modal-content" style="max-width: 500px; max-height: 80vh; display: flex; flex-direction: column;">
+    <div class="modal-content" style="max-width:500px;max-height:80vh;display:flex;flex-direction:column;">
         <button class="modal-x-close" onclick="closeModal('notificationsModal')" title="Zavřít">✕</button>
         <h2>Oznámení</h2>
-        <div id="notifList" style="overflow-y: auto; flex: 1; margin-top: 10px;"></div>
+        <div id="notifList" style="overflow-y:auto;flex:1;margin-top:10px;"></div>
         <div class="modal-actions">
             <button class="btn btn-ghost" style="color:var(--ink);" onclick="closeModal('notificationsModal')">Zavřít</button>
         </div>
     </div>
 </div>
 
-<!-- rate modal – NEKONČÍ kliknutím bokem -->
+<!-- rate modal -->
 <div class="modal" id="rateModal">
     <div class="modal-content">
         <button class="modal-x-close" onclick="closeModal('rateModal')" title="Zavřít">✕</button>
@@ -313,7 +320,7 @@
         <input type="hidden" id="rateValue" value="0">
         <div class="form-group">
             <label>Hodnocení</label>
-            <div id="starPicker" style="font-size: 2rem; cursor: pointer; user-select: none;">
+            <div id="starPicker" style="font-size:2rem;cursor:pointer;user-select:none;">
                 <span data-v="1">☆</span><span data-v="2">☆</span><span data-v="3">☆</span><span data-v="4">☆</span><span data-v="5">☆</span>
             </div>
         </div>
@@ -328,15 +335,15 @@
     </div>
 </div>
 
-<!-- chat modal – NEKONČÍ kliknutím bokem -->
+<!-- chat modal (soukromý) -->
 <div class="modal" id="chatModal">
     <div class="modal-content">
         <button class="modal-x-close" onclick="closeModal('chatModal')" title="Zavřít">✕</button>
-        <h2>Komunita</h2>
+        <h2 id="chatModalTitle">Chat s prodejcem</h2>
         <div id="chatBox"></div>
         <div class="chat-input-row">
             <input type="text" id="chatInput" placeholder="Napište zprávu…" onkeydown="if(event.key==='Enter')sendMessage()">
-            <button class="btn btn-amber" onclick="sendMessage()">Odeslat</button>
+            <button class="btn btn-amber" style="padding:10px 18px;" onclick="sendMessage()">Odeslat</button>
         </div>
         <div class="modal-actions">
             <button class="btn btn-ghost" style="color:var(--ink);" onclick="closeModal('chatModal')">Zavřít</button>

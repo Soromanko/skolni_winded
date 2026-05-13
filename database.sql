@@ -110,21 +110,30 @@ CREATE TABLE IF NOT EXISTS Hodnoceni (
                                              UNIQUE (objednavka_id, hodnotitel_id)
 );
 
+-- Starý globální chat nahrazen soukromým chatem mezi prodejcem a kupujícím
 CREATE TABLE IF NOT EXISTS ChatZprava (
                                           zprava_id    INT UNSIGNED    NOT NULL AUTO_INCREMENT,
-                                          uzivatel_id  INT UNSIGNED    NOT NULL,
+                                          nabidka_id   INT UNSIGNED    NOT NULL,
+                                          odesilatel_id INT UNSIGNED   NOT NULL,
+                                          prijemce_id  INT UNSIGNED    NOT NULL,
                                           zprava       TEXT            NOT NULL,
                                           cas          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                           PRIMARY KEY (zprava_id),
-                                          CONSTRAINT fk_zprava_uzivatel
-                                              FOREIGN KEY (uzivatel_id) REFERENCES Uzivatel (uzivatel_id)
+                                          CONSTRAINT fk_zprava_nabidka
+                                              FOREIGN KEY (nabidka_id) REFERENCES Nabidka (nabidka_id)
+                                                  ON UPDATE CASCADE ON DELETE CASCADE,
+                                          CONSTRAINT fk_zprava_odesilatel
+                                              FOREIGN KEY (odesilatel_id) REFERENCES Uzivatel (uzivatel_id)
+                                                  ON UPDATE CASCADE ON DELETE CASCADE,
+                                          CONSTRAINT fk_zprava_prijemce
+                                              FOREIGN KEY (prijemce_id) REFERENCES Uzivatel (uzivatel_id)
                                                   ON UPDATE CASCADE ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS Notifikace (
                                           notifikace_id INT UNSIGNED   NOT NULL AUTO_INCREMENT,
                                           uzivatel_id   INT UNSIGNED   NOT NULL,
-                                          typ           ENUM('prodej','nakup','hodnoceni') NOT NULL,
+                                          typ           ENUM('prodej','nakup','hodnoceni','zprava') NOT NULL,
                                           text          TEXT           NOT NULL,
                                           precteno      TINYINT(1)     NOT NULL DEFAULT 0,
                                           vytvoreno     DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -155,6 +164,7 @@ CREATE INDEX idx_fotka_nabidka       ON Fotka      (nabidka_id);
 CREATE INDEX idx_objednavka_nabidka  ON Objednavka (nabidka_id);
 CREATE INDEX idx_objednavka_kupujici ON Objednavka (kupujici_id);
 CREATE INDEX idx_hodnoceni_hodnoceny ON Hodnoceni  (hodnoceny_id);
+CREATE INDEX idx_chat_nabidka        ON ChatZprava (nabidka_id);
 CREATE INDEX idx_chat_cas            ON ChatZprava (cas);
 CREATE INDEX idx_notifikace_uzivatel ON Notifikace (uzivatel_id);
 CREATE INDEX idx_reset_token         ON PasswordReset (token);
