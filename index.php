@@ -1,3 +1,4 @@
+<?php header("Content-Type: text/html; charset=utf-8"); ?>
 <!doctype html>
 <html lang="cs">
 <head>
@@ -26,7 +27,6 @@
             <div class="profile-menu" id="profileMenu">
                 <button class="profile-menu-item" onclick="openMyOrders(); closeProfileMenu();">📦 Moje objednávky</button>
                 <button class="profile-menu-item" onclick="openMyListings(); closeProfileMenu();">📋 Moje inzeráty</button>
-                <button class="profile-menu-item" onclick="openMyConversations(); closeProfileMenu();">💬 Zprávy</button>
                 <div class="profile-menu-divider"></div>
                 <button class="profile-menu-item profile-menu-logout" onclick="logout(); closeProfileMenu();">🚪 Odhlásit se</button>
             </div>
@@ -354,19 +354,6 @@
 
 <!-- toast -->
 <div id="toast"></div>
-
-
-<!-- conversations modal -->
-<div class="modal" id="conversationsModal">
-    <div class="modal-content" style="max-width:500px;max-height:80vh;display:flex;flex-direction:column;">
-        <button class="modal-x-close" onclick="closeModal('conversationsModal')" title="Zavřít">✕</button>
-        <h2>💬 Zprávy</h2>
-        <div id="convList" style="overflow-y:auto;flex:1;margin-top:10px;"></div>
-        <div class="modal-actions">
-            <button class="btn btn-ghost" style="color:var(--ink);" onclick="closeModal('conversationsModal')">Zavřít</button>
-        </div>
-    </div>
-</div>
 
 <script src="index.js"></script>
 </body>
