@@ -662,6 +662,49 @@ if ($action === 'rate' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+
+// ── MY CONVERSATIONS ──
+if ($action === 'my_conversations') {
+    if (!isset($_SESSION['user'])) {
+        http_response_code(401);
+        echo json_encode(array('error' => 'Nejste přihlášeni.'));
+        exit;
+    }
+    $myId = (int)$_SESSION['user']['id'];
+
+    // Každá unikátní kombinace (nabidka_id, druhy_uzivatel) = jedna konverzace
+    $stmt = $pdo->prepare(
+        "SELECT sub.nabidka_id,
+                sub.druhy_id,
+                u.jmeno  AS druhy_jmeno,
+                pol.nazev AS nazev_nabidky,
+                sub.posledni_cas,
+                (SELECT cz.zprava FROM ChatZprava cz
+                 WHERE  cz.nabidka_id   = sub.nabidka_id
+                   AND  ((cz.odesilatel_id = :myId1 AND cz.prijemce_id = sub.druhy_id)
+                      OR (cz.odesilatel_id = sub.druhy_id AND cz.prijemce_id = :myId2))
+                 ORDER BY cz.cas DESC LIMIT 1) AS posledni_zprava
+         FROM (
+             SELECT nabidka_id,
+                    CASE WHEN odesilatel_id = :myId3 THEN prijemce_id ELSE odesilatel_id END AS druhy_id,
+                    MAX(cas) AS posledni_cas
+             FROM   ChatZprava
+             WHERE  odesilatel_id = :myId4 OR prijemce_id = :myId5
+             GROUP BY nabidka_id, druhy_id
+         ) sub
+         JOIN Uzivatel u   ON u.uzivatel_id  = sub.druhy_id
+         JOIN Nabidka  nab ON nab.nabidka_id = sub.nabidka_id
+         JOIN Polozka  pol ON pol.polozka_id = nab.polozka_id
+         ORDER BY sub.posledni_cas DESC"
+    );
+    $stmt->execute(array(
+        ':myId1' => $myId, ':myId2' => $myId,
+        ':myId3' => $myId, ':myId4' => $myId, ':myId5' => $myId,
+    ));
+    echo json_encode($stmt->fetchAll());
+    exit;
+}
+
 // ── CHAT: GET MESSAGES (soukromý) ──
 if ($action === 'chat') {
     if (!isset($_SESSION['user'])) {

@@ -300,13 +300,19 @@ function openProductDetail(id) {
         ? '<img src="' + p.img + '" alt="' + escapeHtml(p.title) + '" style="width:100%;max-height:340px;object-fit:cover;border-radius:10px;margin-bottom:20px;">'
         : '<div style="width:100%;height:200px;background:var(--cream);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:4rem;margin-bottom:20px;">📚</div>';
 
-    var chatBtn = (!isOwn)
-        ? '<button class="btn btn-ghost" style="border:1.5px solid var(--amber);color:var(--amber);" onclick="closeModal(\'productDetailModal\');openProductChat(' + p.id + ',' + p.seller_id + ',\'' + escapeHtml(p.title).replace(/'/g,"\\'") + '\')">💬 Napsat prodejci</button>'
-        : '';
-
-    var cartBtn = (!isOwn)
-        ? '<button class="btn btn-amber" style="flex:1;" onclick="addToCart(' + p.id + ');closeModal(\'productDetailModal\');">🛒 Do košíku</button>'
-        : '<span style="color:#aaa;font-size:.88rem;">Toto je váš inzerát</span>';
+    var actionRow;
+    if (isOwn) {
+        actionRow = '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">' +
+            '<span style="color:#aaa;font-size:.88rem;font-style:italic;">Toto je váš inzerát</span>' +
+            '</div>';
+    } else {
+        actionRow = '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">' +
+            '<button class="btn btn-ghost" style="border:1.5px solid var(--amber);color:var(--amber);" ' +
+            'onclick="closeModal(\'productDetailModal\');openProductChat(' + p.id + ',' + p.seller_id + ',\'' + escapeHtml(p.title).replace(/'/g,"\\'") + '\')">💬 Napsat prodejci</button>' +
+            '<button class="btn btn-amber" style="flex:1;justify-content:center;" ' +
+            'onclick="addToCart(' + p.id + ');closeModal(\'productDetailModal\');">🛒 Do košíku</button>' +
+            '</div>';
+    }
 
     var html =
         imgHtml +
@@ -319,10 +325,7 @@ function openProductDetail(id) {
         (p.description ? '<p style="font-size:.93rem;color:#555;line-height:1.6;margin-bottom:16px;">' + escapeHtml(p.description) + '</p>' : '') +
         '<div style="font-size:.85rem;color:var(--ink);margin-bottom:18px;">Prodejce: <b>' + escapeHtml(p.seller_name || '') + '</b></div>' +
         '<div style="font-size:1.6rem;font-weight:800;color:var(--ink);margin-bottom:22px;">' + Number(p.price).toLocaleString('cs') + ' Kč</div>' +
-        '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
-        chatBtn +
-        cartBtn +
-        '</div>';
+        actionRow;
 
     document.getElementById('productDetailBody').innerHTML = html;
     openModal('productDetailModal');
@@ -678,6 +681,37 @@ function renderChat() {
             '</div>';
     }).join('');
     box.scrollTop = box.scrollHeight;
+}
+
+
+// ── MY CONVERSATIONS ──
+function openMyConversations() {
+    if (!currentUser) { showToast('Přihlaste se.'); openLogin(); return; }
+    var list = document.getElementById('convList');
+    list.innerHTML = '<p style="text-align:center;padding:24px 0;color:var(--ink);">Načítám…</p>';
+    openModal('conversationsModal');
+    fetch('api.php?action=my_conversations')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.length) {
+                list.innerHTML = '<p style="color:var(--ink);text-align:center;padding:32px 0;">Žádné zprávy.</p>';
+                return;
+            }
+            list.innerHTML = data.map(function(c) {
+                var initials = escapeHtml(c.druhy_jmeno).charAt(0).toUpperCase();
+                return '<div class="conv-row" onclick="closeModal(\'conversationsModal\');openProductChat(' +
+                    c.nabidka_id + ',' + c.druhy_id + ',\'' + escapeHtml(c.nazev_nabidky).replace(/'/g,"\\'") + '\')">' +
+                    '<div class="conv-avatar">' + initials + '</div>' +
+                    '<div style="flex:1;min-width:0;">' +
+                    '<div style="font-weight:600;font-size:.9rem;">' + escapeHtml(c.druhy_jmeno) + '</div>' +
+                    '<div style="font-size:.78rem;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(c.nazev_nabidky) + '</div>' +
+                    (c.posledni_zprava ? '<div style="font-size:.76rem;color:#aaa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(c.posledni_zprava) + '</div>' : '') +
+                    '</div>' +
+                    '<div style="font-size:.72rem;color:#bbb;white-space:nowrap;margin-left:8px;">' + (c.posledni_cas || '') + '</div>' +
+                    '</div>';
+            }).join('');
+        })
+        .catch(function() { list.innerHTML = '<p style="color:#e57373;text-align:center;padding:24px;">Chyba načítání.</p>'; });
 }
 
 // ── INIT ──

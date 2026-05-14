@@ -466,3 +466,28 @@ textarea { resize: vertical; min-height: 90px; }
     .hero-filters { gap: 8px 12px; }
     .modal-content-wide { padding: 20px; }
 }
+/* ── Conversations list ── */
+.conv-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 6px;
+    border-bottom: 1px solid rgba(0,0,0,.06);
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background .15s;
+}
+.conv-row:hover { background: rgba(96,123,125,.08); }
+.conv-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: var(--amber);
+    color: #fff;
+    font-weight: 700;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
