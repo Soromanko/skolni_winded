@@ -6,6 +6,13 @@ require 'db.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
+// Jednotný JSON výstup – vždy v UTF-8, ať diakritika v oznámeních i zprávách sedí
+function jout($data, $code = 200) {
+    http_response_code($code);
+    echo json_encode($data, JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 $action = isset($_GET['action']) ? $_GET['action'] : '';
 
 // ── PRODUCTS LIST ──
@@ -73,7 +80,7 @@ if ($action === 'products') {
          $where $orderBy"
     );
     $stmt->execute($params);
-    echo json_encode($stmt->fetchAll());
+    echo json_encode($stmt->fetchAll(), JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -401,15 +408,15 @@ if ($action === 'checkout' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $nabRow = $checkStmt->fetch();
 
             if (!$nabRow) {
-                $errors[] = 'Položka "' . htmlspecialchars($item['title']) . '" nebyla nalezena.';
+                $errors[] = 'Položka "' . $item['title'] . '" nebyla nalezena.';
                 continue;
             }
             if ($nabRow['stav_nabidky'] !== 'aktivni') {
-                $errors[] = 'Položka "' . htmlspecialchars($item['title']) . '" již není dostupná.';
+                $errors[] = 'Položka "' . $item['title'] . '" již není dostupná.';
                 continue;
             }
             if ((int)$nabRow['uzivatel_id'] === $buyerId) {
-                $errors[] = 'Nemůžete koupit vlastní inzerát "' . htmlspecialchars($item['title']) . '".';
+                $errors[] = 'Nemůžete koupit vlastní inzerát "' . $item['title'] . '".';
                 continue;
             }
 
@@ -432,8 +439,8 @@ if ($action === 'checkout' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $notifIns->execute(array(
                     ':uid'  => $sellerRow['uzivatel_id'],
                     ':typ'  => 'prodej',
-                    ':text' => 'Vaše nabídka "' . htmlspecialchars($item['title']) . '" byla zakoupena uživatelem '
-                        . htmlspecialchars($buyerName) . '. Adresa doručení: ' . htmlspecialchars($adresa) . '.',
+                    ':text' => 'Vaše nabídka "' . $item['title'] . '" byla zakoupena uživatelem '
+                        . $buyerName . '. Adresa doručení: ' . $adresa . '.',
                 ));
 
                 if (!empty($sellerRow['email'])) {
@@ -452,8 +459,8 @@ if ($action === 'checkout' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $notifIns->execute(array(
                 ':uid'  => $buyerId,
                 ':typ'  => 'nakup',
-                ':text' => 'Vaše objednávka "' . htmlspecialchars($item['title']) . '" byla přijata. Doručíme na: '
-                    . htmlspecialchars($adresa) . '.',
+                ':text' => 'Vaše objednávka "' . $item['title'] . '" byla přijata. Doručíme na: '
+                    . $adresa . '.',
             ));
         }
 
@@ -524,7 +531,7 @@ if ($action === 'my_orders') {
          ORDER BY o.vytvoreno DESC"
     );
     $stmt->execute(array(':uid' => $_SESSION['user']['id'], ':uid2' => $_SESSION['user']['id']));
-    echo json_encode($stmt->fetchAll());
+    echo json_encode($stmt->fetchAll(), JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -552,7 +559,7 @@ if ($action === 'my_listings') {
          ORDER BY n.datum DESC"
     );
     $stmt->execute(array(':uid' => $_SESSION['user']['id']));
-    echo json_encode($stmt->fetchAll());
+    echo json_encode($stmt->fetchAll(), JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -570,7 +577,7 @@ if ($action === 'notifications') {
          LIMIT 30"
     );
     $stmt->execute(array(':uid' => $_SESSION['user']['id']));
-    echo json_encode($stmt->fetchAll());
+    echo json_encode($stmt->fetchAll(), JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -657,7 +664,7 @@ if ($action === 'rate' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $notifIns->execute(array(
         ':uid'  => $sellerId,
         ':typ'  => 'hodnoceni',
-        ':text' => 'Získali jste nové hodnocení: ' . $stars . ($komentar ? ' — "' . htmlspecialchars($komentar) . '"' : ''),
+        ':text' => 'Získali jste nové hodnocení: ' . $stars . ($komentar ? ' — "' . $komentar . '"' : ''),
     ));
 
     echo json_encode(array('status' => 'ok'));
@@ -705,7 +712,7 @@ if ($action === 'chat') {
         ':druhy2' => $druhyUzivId,
         ':uid2'   => $myId,
     ));
-    echo json_encode($stmt->fetchAll());
+    echo json_encode($stmt->fetchAll(), JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -718,6 +725,7 @@ if ($action === 'chat_send' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $body       = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) $body = $_POST; // fallback pro FormData
     $text       = isset($body['text'])        ? trim($body['text'])         : '';
     $nabidkaId  = isset($body['nabidka_id'])  ? intval($body['nabidka_id']) : 0;
     $prijemceId = isset($body['prijemce_id']) ? intval($body['prijemce_id']): 0;
@@ -768,12 +776,146 @@ if ($action === 'chat_send' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     );
     $notifIns->execute(array(
         ':uid'  => $prijemceId,
-        ':text' => htmlspecialchars($myName) . ' vám poslal/a zprávu.',
+        ':text' => $myName . ' vám poslal/a zprávu.',
     ));
 
     $time = date('H:i');
-    echo json_encode(array('status' => 'ok', 'user' => $myName, 'text' => $text, 'time' => $time, 'odesilatel_id' => $myId));
+    echo json_encode(array('status' => 'ok', 'user' => $myName, 'text' => $text, 'time' => $time, 'odesilatel_id' => $myId), JSON_UNESCAPED_UNICODE);
     exit;
+}
+
+// ── PROFILE: GET ──
+if ($action === 'profile_get') {
+    if (!isset($_SESSION['user'])) {
+        jout(array('error' => 'Nejste přihlášeni.'), 401);
+    }
+    $stmt = $pdo->prepare("SELECT jmeno, prijmeni, email, telefon FROM Uzivatel WHERE uzivatel_id = :uid");
+    $stmt->execute(array(':uid' => $_SESSION['user']['id']));
+    $u = $stmt->fetch();
+    if (!$u) {
+        jout(array('error' => 'Uživatel nenalezen.'), 404);
+    }
+    jout($u);
+}
+
+// ── PROFILE: UPDATE (jméno, příjmení, e-mail, telefon) ──
+if ($action === 'profile_update' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!isset($_SESSION['user'])) {
+        jout(array('error' => 'Nejste přihlášeni.'), 401);
+    }
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) $body = $_POST;
+
+    $jmeno    = isset($body['jmeno'])    ? trim($body['jmeno'])    : '';
+    $prijmeni = isset($body['prijmeni']) ? trim($body['prijmeni']) : '';
+    $email    = isset($body['email'])    ? trim($body['email'])    : '';
+    $telefon  = isset($body['telefon'])  ? trim($body['telefon'])  : '';
+
+    if ($jmeno === '' || $email === '') {
+        jout(array('error' => 'Jméno a e-mail jsou povinné.'), 400);
+    }
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        jout(array('error' => 'Neplatný formát e-mailu.'), 400);
+    }
+
+    $uid = (int)$_SESSION['user']['id'];
+
+    $chk = $pdo->prepare("SELECT uzivatel_id FROM Uzivatel WHERE email = :email AND uzivatel_id <> :uid");
+    $chk->execute(array(':email' => $email, ':uid' => $uid));
+    if ($chk->fetch()) {
+        jout(array('error' => 'Tento e-mail už používá jiný účet.'), 409);
+    }
+
+    $upd = $pdo->prepare(
+        "UPDATE Uzivatel
+            SET jmeno = :jmeno, prijmeni = :prijmeni, email = :email, telefon = :telefon
+          WHERE uzivatel_id = :uid"
+    );
+    $upd->execute(array(
+        ':jmeno'    => $jmeno,
+        ':prijmeni' => $prijmeni,
+        ':email'    => $email,
+        ':telefon'  => ($telefon !== '' ? $telefon : null),
+        ':uid'      => $uid,
+    ));
+
+    // Aktualizovat i session, ať se hned projeví jméno v hlavičce
+    $_SESSION['user']['jmeno'] = $jmeno;
+    $_SESSION['user']['email'] = $email;
+
+    jout(array(
+        'status'   => 'ok',
+        'jmeno'    => $jmeno,
+        'prijmeni' => $prijmeni,
+        'email'    => $email,
+        'telefon'  => $telefon,
+    ));
+}
+
+// ── PROFILE: CHANGE PASSWORD ──
+if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!isset($_SESSION['user'])) {
+        jout(array('error' => 'Nejste přihlášeni.'), 401);
+    }
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) $body = $_POST;
+
+    $current = isset($body['current']) ? $body['current'] : '';
+    $new     = isset($body['new'])     ? $body['new']     : '';
+
+    if (strlen($new) < 6) {
+        jout(array('error' => 'Nové heslo musí mít alespoň 6 znaků.'), 400);
+    }
+
+    $uid  = (int)$_SESSION['user']['id'];
+    $stmt = $pdo->prepare("SELECT heslo FROM Uzivatel WHERE uzivatel_id = :uid");
+    $stmt->execute(array(':uid' => $uid));
+    $row = $stmt->fetch();
+
+    if (!$row || !password_verify($current, $row['heslo'])) {
+        jout(array('error' => 'Současné heslo není správné.'), 403);
+    }
+
+    $hash = password_hash($new, PASSWORD_BCRYPT);
+    $pdo->prepare("UPDATE Uzivatel SET heslo = :h WHERE uzivatel_id = :uid")
+        ->execute(array(':h' => $hash, ':uid' => $uid));
+
+    jout(array('status' => 'ok'));
+}
+
+// ── CONVERSATIONS (seznam soukromých chatů uživatele) ──
+if ($action === 'conversations') {
+    if (!isset($_SESSION['user'])) {
+        jout(array());
+    }
+    $me = (int)$_SESSION['user']['id'];
+    $stmt = $pdo->prepare(
+        "SELECT t.nabidka_id,
+                t.partner_id,
+                u.jmeno AS partner_name,
+                p.nazev AS title,
+                t.last_time,
+                (SELECT z.zprava FROM ChatZprava z
+                  WHERE z.nabidka_id = t.nabidka_id
+                    AND ((z.odesilatel_id = :me1 AND z.prijemce_id = t.partner_id)
+                      OR (z.odesilatel_id = t.partner_id AND z.prijemce_id = :me2))
+                  ORDER BY z.cas DESC, z.zprava_id DESC LIMIT 1) AS last_text
+         FROM (
+             SELECT nabidka_id,
+                    CASE WHEN odesilatel_id = :me3 THEN prijemce_id ELSE odesilatel_id END AS partner_id,
+                    MAX(cas) AS last_time
+             FROM   ChatZprava
+             WHERE  odesilatel_id = :me4 OR prijemce_id = :me5
+             GROUP BY nabidka_id, partner_id
+         ) t
+         JOIN Uzivatel u ON u.uzivatel_id = t.partner_id
+         JOIN Nabidka  n ON n.nabidka_id  = t.nabidka_id
+         JOIN Polozka  p ON p.polozka_id  = n.polozka_id
+         ORDER BY t.last_time DESC
+         LIMIT 100"
+    );
+    $stmt->execute(array(':me1' => $me, ':me2' => $me, ':me3' => $me, ':me4' => $me, ':me5' => $me));
+    jout($stmt->fetchAll());
 }
 
 http_response_code(404);

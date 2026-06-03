@@ -491,3 +491,34 @@ textarea { resize: vertical; min-height: 90px; }
     justify-content: center;
     flex-shrink: 0;
 }
+/* ── ISBN auto-fill ── */
+.isbn-lookup-row { display: flex; gap: 8px; align-items: stretch; }
+.isbn-lookup-row input { flex: 1; }
+.isbn-lookup-btn {
+    border: 1.5px solid var(--amber);
+    color: var(--amber);
+    background: transparent;
+    white-space: nowrap;
+    padding: 8px 14px;
+}
+.isbn-lookup-btn:hover { background: var(--amber); color: #fff; }
+.isbn-status { display: block; font-size: .78rem; margin-top: 6px; min-height: 1em; line-height: 1.3; }
+
+/* ── Oddělovač sekcí v modalu (např. změna hesla) ── */
+.settings-divider {
+    display: flex; align-items: center; gap: 12px;
+    margin: 26px 0 18px;
+    font-size: .78rem; font-weight: 600; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--amber);
+}
+.settings-divider::before,
+.settings-divider::after { content: ''; flex: 1; height: 1px; background: var(--cream); }
+
+/* ── Konverzace – doplnění k .conv-row / .conv-avatar ── */
+.conv-body { flex: 1; min-width: 0; }
+.conv-name { font-weight: 600; font-size: .92rem; color: var(--ink); }
+.conv-preview {
+    font-size: .8rem; color: #7a8a8e; margin-top: 2px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.conv-time { font-size: .72rem; color: #aaa; white-space: nowrap; align-self: flex-start; }

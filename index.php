@@ -25,6 +25,8 @@
                 👤 <span id="profileName"></span> <span class="profile-caret">▾</span>
             </button>
             <div class="profile-menu" id="profileMenu">
+                <button class="profile-menu-item" onclick="openProfile(); closeProfileMenu();">⚙️ Můj profil</button>
+                <button class="profile-menu-item" onclick="openConversations(); closeProfileMenu();">💬 Zprávy</button>
                 <button class="profile-menu-item" onclick="openMyOrders(); closeProfileMenu();">📦 Moje objednávky</button>
                 <button class="profile-menu-item" onclick="openMyListings(); closeProfileMenu();">📋 Moje inzeráty</button>
                 <div class="profile-menu-divider"></div>
@@ -221,7 +223,11 @@
         </div>
         <div class="form-group">
             <label>ISBN</label>
-            <input type="text" id="isbn" placeholder="978-80-...">
+            <div class="isbn-lookup-row">
+                <input type="text" id="isbn" placeholder="978-80-...">
+                <button type="button" class="btn btn-ghost isbn-lookup-btn" onclick="lookupISBN()">🔍 Načíst</button>
+            </div>
+            <span id="isbnStatus" class="isbn-status"></span>
         </div>
         <div class="form-group">
             <label>Stav</label>
@@ -339,7 +345,7 @@
 <!-- chat modal (soukromý) -->
 <div class="modal" id="chatModal">
     <div class="modal-content">
-        <button class="modal-x-close" onclick="closeModal('chatModal')" title="Zavřít">✕</button>
+        <button class="modal-x-close" onclick="closeChat()" title="Zavřít">✕</button>
         <h2 id="chatModalTitle">Chat s prodejcem</h2>
         <div id="chatBox"></div>
         <div class="chat-input-row">
@@ -347,7 +353,66 @@
             <button class="btn btn-amber" style="padding:10px 18px;" onclick="sendMessage()">Odeslat</button>
         </div>
         <div class="modal-actions">
-            <button class="btn btn-ghost" style="color:var(--ink);" onclick="closeModal('chatModal')">Zavřít</button>
+            <button class="btn btn-ghost" style="color:var(--ink);" onclick="closeChat()">Zavřít</button>
+        </div>
+    </div>
+</div>
+
+<!-- profil / nastavení účtu -->
+<div class="modal" id="profileModal">
+    <div class="modal-content">
+        <button class="modal-x-close" onclick="closeModal('profileModal')" title="Zavřít">✕</button>
+        <h2>Můj profil</h2>
+
+        <div class="form-group">
+            <label>Jméno</label>
+            <input type="text" id="profJmeno" placeholder="Vaše jméno" autocomplete="given-name">
+        </div>
+        <div class="form-group">
+            <label>Příjmení</label>
+            <input type="text" id="profPrijmeni" placeholder="Vaše příjmení" autocomplete="family-name">
+        </div>
+        <div class="form-group">
+            <label>E-mail</label>
+            <input type="email" id="profEmail" placeholder="vas@email.cz" autocomplete="email">
+        </div>
+        <div class="form-group">
+            <label>Telefon</label>
+            <input type="tel" id="profTelefon" placeholder="+420 123 456 789" autocomplete="tel">
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-amber" onclick="saveProfile()">Uložit změny</button>
+        </div>
+
+        <div class="settings-divider"><span>Změna hesla</span></div>
+
+        <div class="form-group">
+            <label>Současné heslo</label>
+            <input type="password" id="profOldPass" placeholder="••••••••" autocomplete="current-password">
+        </div>
+        <div class="form-group">
+            <label>Nové heslo</label>
+            <input type="password" id="profNewPass" placeholder="Min. 6 znaků" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+            <label>Potvrdit nové heslo</label>
+            <input type="password" id="profNewPass2" placeholder="Zopakujte heslo" autocomplete="new-password">
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" style="color:var(--ink);" onclick="closeModal('profileModal')">Zavřít</button>
+            <button class="btn btn-amber" onclick="changeMyPassword()">Změnit heslo</button>
+        </div>
+    </div>
+</div>
+
+<!-- seznam konverzací / zprávy -->
+<div class="modal" id="conversationsModal">
+    <div class="modal-content" style="max-width:520px;max-height:80vh;display:flex;flex-direction:column;">
+        <button class="modal-x-close" onclick="closeModal('conversationsModal')" title="Zavřít">✕</button>
+        <h2>Zprávy</h2>
+        <div id="conversationsList" style="overflow-y:auto;flex:1;margin-top:10px;"></div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" style="color:var(--ink);" onclick="closeModal('conversationsModal')">Zavřít</button>
         </div>
     </div>
 </div>

@@ -10,6 +10,7 @@ let currentSort = 'newest';
 // Chat state
 let chatNabidkaId  = null;
 let chatDruhyId    = null;
+let chatPollTimer  = null;
 
 // ── TOAST ──
 function showToast(msg) {
@@ -614,9 +615,32 @@ function openProductChat(nabidkaId, druhyId, nazev) {
     document.getElementById('chatModalTitle').textContent = 'Chat – ' + nazev;
     document.getElementById('chatBox').innerHTML = '';
     document.getElementById('chatInput').value   = '';
+    messages = [];
 
     openModal('chatModal');
     loadChat();
+    startChatPolling();
+}
+
+function startChatPolling() {
+    stopChatPolling();
+    // lehké obnovování, ať vidíme příchozí zprávy bez zavírání okna
+    chatPollTimer = setInterval(function() {
+        if (document.getElementById('chatModal').classList.contains('open')) {
+            loadChat();
+        } else {
+            stopChatPolling();
+        }
+    }, 4000);
+}
+
+function stopChatPolling() {
+    if (chatPollTimer) { clearInterval(chatPollTimer); chatPollTimer = null; }
+}
+
+function closeChat() {
+    stopChatPolling();
+    closeModal('chatModal');
 }
 
 function loadChat() {
@@ -625,10 +649,13 @@ function loadChat() {
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.error) { showToast(data.error); return; }
+            var changed = data.length !== messages.length ||
+                (data.length && messages.length &&
+                    String(data[data.length - 1].id) !== String(messages[messages.length - 1].id));
             messages = data;
-            renderChat();
+            if (changed) renderChat();
         })
-        .catch(function() { renderChat(); });
+        .catch(function() {});
 }
 
 function sendMessage() {
@@ -639,14 +666,10 @@ function sendMessage() {
     var text  = input.value.trim();
     if (!text) return;
 
-    var fd = new FormData();
-    fd.append('text', text);
-    fd.append('nabidka_id', chatNabidkaId);
-    fd.append('prijemce_id', chatDruhyId);
-
     fetch('api.php?action=chat_send', {
         method: 'POST',
-        body: fd
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text, nabidka_id: chatNabidkaId, prijemce_id: chatDruhyId })
     })
         .then(function(r) { return r.json(); })
         .then(function(data) {
@@ -678,6 +701,168 @@ function renderChat() {
             '</div>';
     }).join('');
     box.scrollTop = box.scrollHeight;
+}
+
+// ── ISBN AUTO-FILL ──
+function lookupISBN() {
+    var raw      = document.getElementById('isbn').value.trim();
+    var isbn     = raw.replace(/[^0-9Xx]/g, '');
+    var statusEl = document.getElementById('isbnStatus');
+
+    if (isbn.length !== 10 && isbn.length !== 13) {
+        statusEl.style.color = '#c0392b';
+        statusEl.textContent = 'Zadejte platné ISBN (10 nebo 13 číslic).';
+        return;
+    }
+    statusEl.style.color = 'var(--ink)';
+    statusEl.textContent = 'Hledám knihu podle ISBN…';
+
+    fetch('https://www.googleapis.com/books/v1/volumes?q=isbn:' + encodeURIComponent(isbn))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data && data.totalItems > 0 && data.items && data.items.length) {
+                var info  = data.items[0].volumeInfo || {};
+                var title = info.title + (info.subtitle ? ': ' + info.subtitle : '');
+                if (title) document.getElementById('title').value = title;
+                var author = (info.authors && info.authors.length)
+                    ? info.authors.join(', ')
+                    : (info.publisher || '');
+                if (author) document.getElementById('brand').value = author;
+                statusEl.style.color = '#2e7d32';
+                statusEl.textContent = '✓ Nalezeno: ' + title;
+            } else {
+                lookupOpenLibrary(isbn, statusEl);
+            }
+        })
+        .catch(function() { lookupOpenLibrary(isbn, statusEl); });
+}
+
+// Záložní zdroj, kdyby Google Books knihu neznal
+function lookupOpenLibrary(isbn, statusEl) {
+    fetch('https://openlibrary.org/api/books?bibkeys=ISBN:' + isbn + '&format=json&jscmd=data')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var key = 'ISBN:' + isbn;
+            if (data && data[key]) {
+                var b = data[key];
+                if (b.title) document.getElementById('title').value = b.title;
+                if (b.authors && b.authors.length) {
+                    document.getElementById('brand').value = b.authors.map(function(a) { return a.name; }).join(', ');
+                } else if (b.publishers && b.publishers.length) {
+                    document.getElementById('brand').value = b.publishers[0].name;
+                }
+                statusEl.style.color = '#2e7d32';
+                statusEl.textContent = '✓ Nalezeno: ' + (b.title || '');
+            } else {
+                statusEl.style.color = '#c0392b';
+                statusEl.textContent = 'Kniha s tímto ISBN nebyla nalezena. Vyplňte název ručně.';
+            }
+        })
+        .catch(function() {
+            statusEl.style.color = '#c0392b';
+            statusEl.textContent = 'Vyhledávání se nezdařilo. Vyplňte název ručně.';
+        });
+}
+
+// ── PROFIL / NASTAVENÍ ──
+function openProfile() {
+    if (!currentUser) { showToast('Přihlaste se.'); openLogin(); return; }
+    ['profOldPass','profNewPass','profNewPass2'].forEach(function(id) {
+        document.getElementById(id).value = '';
+    });
+    fetch('api.php?action=profile_get')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) { showToast(data.error); return; }
+            document.getElementById('profJmeno').value    = data.jmeno    || '';
+            document.getElementById('profPrijmeni').value = data.prijmeni || '';
+            document.getElementById('profEmail').value    = data.email    || '';
+            document.getElementById('profTelefon').value  = data.telefon  || '';
+            openModal('profileModal');
+        })
+        .catch(function() { showToast('Profil se nepodařilo načíst.'); });
+}
+
+function saveProfile() {
+    var jmeno    = document.getElementById('profJmeno').value.trim();
+    var prijmeni = document.getElementById('profPrijmeni').value.trim();
+    var email    = document.getElementById('profEmail').value.trim();
+    var telefon  = document.getElementById('profTelefon').value.trim();
+    if (!jmeno || !email) { showToast('Vyplňte jméno a e-mail.'); return; }
+
+    fetch('api.php?action=profile_update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jmeno: jmeno, prijmeni: prijmeni, email: email, telefon: telefon })
+    })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) { showToast(data.error); return; }
+            currentUser.jmeno = data.jmeno;
+            currentUser.email = data.email;
+            document.getElementById('profileName').textContent = data.jmeno;
+            showToast('Profil uložen. ✓');
+        })
+        .catch(function() { showToast('Uložení se nezdařilo.'); });
+}
+
+function changeMyPassword() {
+    var cur   = document.getElementById('profOldPass').value;
+    var pass1 = document.getElementById('profNewPass').value;
+    var pass2 = document.getElementById('profNewPass2').value;
+    if (!cur)               { showToast('Zadejte současné heslo.'); return; }
+    if (pass1.length < 6)   { showToast('Nové heslo musí mít alespoň 6 znaků.'); return; }
+    if (pass1 !== pass2)    { showToast('Hesla se neshodují.'); return; }
+
+    fetch('api.php?action=change_password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ current: cur, new: pass1 })
+    })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) { showToast(data.error); return; }
+            ['profOldPass','profNewPass','profNewPass2'].forEach(function(id) {
+                document.getElementById(id).value = '';
+            });
+            showToast('Heslo změněno. ✓');
+        })
+        .catch(function() { showToast('Změna hesla se nezdařila.'); });
+}
+
+// ── ZPRÁVY / KONVERZACE ──
+function openConversations() {
+    if (!currentUser) { showToast('Přihlaste se.'); openLogin(); return; }
+    fetch('api.php?action=conversations')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var html = '';
+            if (!data.length) {
+                html = '<p style="color:var(--ink);text-align:center;padding:32px 0;">Zatím žádné konverzace.</p>';
+            } else {
+                data.forEach(function(c) {
+                    var nazev   = c.title || '';
+                    var partner = c.partner_name || '';
+                    var initial = partner ? partner.charAt(0).toUpperCase() : '?';
+                    var preview = c.last_text ? c.last_text : '';
+                    if (preview.length > 48) preview = preview.slice(0, 48) + '…';
+                    var nazevEsc = escapeHtml(nazev).replace(/'/g, "\\'");
+                    html += '<div class="conv-row" onclick="closeModal(\'conversationsModal\');openProductChat(' +
+                        c.nabidka_id + ',' + c.partner_id + ',\'' + nazevEsc + '\')">' +
+                        '<div class="conv-avatar">' + escapeHtml(initial) + '</div>' +
+                        '<div class="conv-body">' +
+                        '<div class="conv-name">' + escapeHtml(partner) + '</div>' +
+                        '<div class="conv-preview">' + escapeHtml(nazev) +
+                        (preview ? ' · ' + escapeHtml(preview) : '') + '</div>' +
+                        '</div>' +
+                        '<div class="conv-time">' + (c.last_time ? String(c.last_time).slice(5, 16) : '') + '</div>' +
+                        '</div>';
+                });
+            }
+            document.getElementById('conversationsList').innerHTML = html;
+            openModal('conversationsModal');
+        })
+        .catch(function() { showToast('Zprávy se nepodařilo načíst.'); });
 }
 
 // ── INIT ──
