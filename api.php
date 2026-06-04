@@ -724,8 +724,9 @@ if ($action === 'chat_send' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    $body       = json_decode(file_get_contents('php://input'), true);
-    if (!is_array($body)) $body = $_POST; // fallback pro FormData
+    // URL-encoded ($body bude z $_POST) nebo JSON (php://input) – $_POST ma prednost
+    $body       = !empty($_POST) ? $_POST : json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) $body = array();
     $text       = isset($body['text'])        ? trim($body['text'])         : '';
     $nabidkaId  = isset($body['nabidka_id'])  ? intval($body['nabidka_id']) : 0;
     $prijemceId = isset($body['prijemce_id']) ? intval($body['prijemce_id']): 0;
@@ -889,33 +890,42 @@ if ($action === 'conversations') {
         jout(array());
     }
     $me = (int)$_SESSION['user']['id'];
-    $stmt = $pdo->prepare(
-        "SELECT t.nabidka_id,
-                t.partner_id,
-                u.jmeno AS partner_name,
-                p.nazev AS title,
-                t.last_time,
-                (SELECT z.zprava FROM ChatZprava z
-                  WHERE z.nabidka_id = t.nabidka_id
-                    AND ((z.odesilatel_id = :me1 AND z.prijemce_id = t.partner_id)
-                      OR (z.odesilatel_id = t.partner_id AND z.prijemce_id = :me2))
-                  ORDER BY z.cas DESC, z.zprava_id DESC LIMIT 1) AS last_text
-         FROM (
-             SELECT nabidka_id,
-                    CASE WHEN odesilatel_id = :me3 THEN prijemce_id ELSE odesilatel_id END AS partner_id,
-                    MAX(cas) AS last_time
-             FROM   ChatZprava
-             WHERE  odesilatel_id = :me4 OR prijemce_id = :me5
-             GROUP BY nabidka_id, partner_id
-         ) t
-         JOIN Uzivatel u ON u.uzivatel_id = t.partner_id
-         JOIN Nabidka  n ON n.nabidka_id  = t.nabidka_id
-         JOIN Polozka  p ON p.polozka_id  = n.polozka_id
-         ORDER BY t.last_time DESC
-         LIMIT 100"
-    );
-    $stmt->execute(array(':me1' => $me, ':me2' => $me, ':me3' => $me, ':me4' => $me, ':me5' => $me));
-    jout($stmt->fetchAll());
+    // GROUP BY opakuje cely CASE vyraz (ne alias) - MySQL 5.x alias v GROUP BY odmita
+    try {
+        $stmt = $pdo->prepare(
+            "SELECT t.nabidka_id,
+                    t.partner_id,
+                    u.jmeno AS partner_name,
+                    p.nazev AS title,
+                    t.last_time,
+                    (SELECT z.zprava FROM ChatZprava z
+                      WHERE z.nabidka_id = t.nabidka_id
+                        AND ((z.odesilatel_id = :me1 AND z.prijemce_id = t.partner_id)
+                          OR (z.odesilatel_id = t.partner_id AND z.prijemce_id = :me2))
+                      ORDER BY z.cas DESC, z.zprava_id DESC LIMIT 1) AS last_text
+             FROM (
+                 SELECT nabidka_id,
+                        CASE WHEN odesilatel_id = :me3 THEN prijemce_id ELSE odesilatel_id END AS partner_id,
+                        MAX(cas) AS last_time
+                 FROM   ChatZprava
+                 WHERE  odesilatel_id = :me4 OR prijemce_id = :me5
+                 GROUP BY nabidka_id,
+                          CASE WHEN odesilatel_id = :me6 THEN prijemce_id ELSE odesilatel_id END
+             ) t
+             JOIN Uzivatel u ON u.uzivatel_id = t.partner_id
+             JOIN Nabidka  n ON n.nabidka_id  = t.nabidka_id
+             JOIN Polozka  p ON p.polozka_id  = n.polozka_id
+             ORDER BY t.last_time DESC
+             LIMIT 100"
+        );
+        $stmt->execute(array(
+            ':me1' => $me, ':me2' => $me, ':me3' => $me,
+            ':me4' => $me, ':me5' => $me, ':me6' => $me,
+        ));
+        jout($stmt->fetchAll());
+    } catch (PDOException $e) {
+        jout(array('error' => 'Chyba nacteni konverzaci.'), 500);
+    }
 }
 
 http_response_code(404);

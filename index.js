@@ -668,8 +668,8 @@ function sendMessage() {
 
     fetch('api.php?action=chat_send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text, nabidka_id: chatNabidkaId, prijemce_id: chatDruhyId })
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ text: text, nabidka_id: chatNabidkaId, prijemce_id: chatDruhyId })
     })
         .then(function(r) { return r.json(); })
         .then(function(data) {
@@ -833,11 +833,20 @@ function changeMyPassword() {
 // ── ZPRÁVY / KONVERZACE ──
 function openConversations() {
     if (!currentUser) { showToast('Přihlaste se.'); openLogin(); return; }
+    // Otevřít modal okamžitě – uživatel vidí reakci hned, obsah doplníme asynchronně
+    document.getElementById('conversationsList').innerHTML =
+        '<p style="color:var(--ink);text-align:center;padding:32px 0;">Načítám zprávy…</p>';
+    openModal('conversationsModal');
+
     fetch('api.php?action=conversations')
-        .then(function(r) { return r.json(); })
+        .then(function(r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+        })
         .then(function(data) {
+            if (data.error) throw new Error(data.error);
             var html = '';
-            if (!data.length) {
+            if (!Array.isArray(data) || !data.length) {
                 html = '<p style="color:var(--ink);text-align:center;padding:32px 0;">Zatím žádné konverzace.</p>';
             } else {
                 data.forEach(function(c) {
@@ -846,7 +855,7 @@ function openConversations() {
                     var initial = partner ? partner.charAt(0).toUpperCase() : '?';
                     var preview = c.last_text ? c.last_text : '';
                     if (preview.length > 48) preview = preview.slice(0, 48) + '…';
-                    var nazevEsc = escapeHtml(nazev).replace(/'/g, "\\'");
+                    var nazevEsc = escapeHtml(nazev).replace(/'/g, "\'");
                     html += '<div class="conv-row" onclick="closeModal(\'conversationsModal\');openProductChat(' +
                         c.nabidka_id + ',' + c.partner_id + ',\'' + nazevEsc + '\')">' +
                         '<div class="conv-avatar">' + escapeHtml(initial) + '</div>' +
@@ -860,9 +869,12 @@ function openConversations() {
                 });
             }
             document.getElementById('conversationsList').innerHTML = html;
-            openModal('conversationsModal');
         })
-        .catch(function() { showToast('Zprávy se nepodařilo načíst.'); });
+        .catch(function(err) {
+            document.getElementById('conversationsList').innerHTML =
+                '<p style="color:#c0392b;text-align:center;padding:32px 0;">Zprávy se nepodařilo načíst.<br><small>' +
+                escapeHtml(String(err)) + '</small></p>';
+        });
 }
 
 // ── INIT ──
