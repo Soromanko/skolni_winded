@@ -643,6 +643,12 @@ function closeChat() {
     closeModal('chatModal');
 }
 
+function backToConversations() {
+    stopChatPolling();
+    closeModal('chatModal');   // openModal nezavírá ostatní, takže zavřeme chat ručně
+    openConversations();        // znovu načte seznam (čerstvý náhled poslední zprávy)
+}
+
 function loadChat() {
     if (!chatNabidkaId || !chatDruhyId) return;
     fetch('api.php?action=chat&nabidka_id=' + chatNabidkaId + '&druhy_id=' + chatDruhyId)

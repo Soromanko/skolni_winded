@@ -346,6 +346,7 @@
 <div class="modal" id="chatModal">
     <div class="modal-content">
         <button class="modal-x-close" onclick="closeChat()" title="Zavřít">✕</button>
+        <button class="chat-back-btn" onclick="backToConversations()">← Zpět na zprávy</button>
         <h2 id="chatModalTitle">Chat s prodejcem</h2>
         <div id="chatBox"></div>
         <div class="chat-input-row">
