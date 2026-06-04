@@ -7,7 +7,7 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>Bazar učebnic - WINDED</title>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=<?php echo filemtime('style.css'); ?>">
 </head>
 <body>
 
@@ -420,6 +420,6 @@
 <!-- toast -->
 <div id="toast"></div>
 
-<script src="index.js"></script>
+<script src="index.js?v=<?php echo filemtime('index.js'); ?>"></script>
 </body>
 </html>
