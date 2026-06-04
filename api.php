@@ -751,38 +751,48 @@ if ($action === 'chat_send' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // Ověřit, že nabídka existuje
-    $chkNab = $pdo->prepare("SELECT nabidka_id FROM Nabidka WHERE nabidka_id = :nid");
-    $chkNab->execute(array(':nid' => $nabidkaId));
-    if (!$chkNab->fetch()) {
-        http_response_code(404);
-        echo json_encode(array('error' => 'Nabídka nenalezena.'));
+    try {
+        // Ověřit, že nabídka existuje
+        $chkNab = $pdo->prepare("SELECT nabidka_id FROM Nabidka WHERE nabidka_id = :nid");
+        $chkNab->execute(array(':nid' => $nabidkaId));
+        if (!$chkNab->fetch()) {
+            http_response_code(404);
+            echo json_encode(array('error' => 'Nabídka nenalezena.'), JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        $ins = $pdo->prepare(
+            "INSERT INTO ChatZprava (nabidka_id, odesilatel_id, prijemce_id, zprava)
+             VALUES (:nid, :od, :pr, :zprava)"
+        );
+        $ins->execute(array(
+            ':nid'    => $nabidkaId,
+            ':od'     => $myId,
+            ':pr'     => $prijemceId,
+            ':zprava' => $text,
+        ));
+
+        // Notifikace příjemci (když selže enum/sloupec, chat tím nepoložíme)
+        try {
+            $notifIns = $pdo->prepare(
+                "INSERT INTO Notifikace (uzivatel_id, typ, text) VALUES (:uid, 'zprava', :text)"
+            );
+            $notifIns->execute(array(
+                ':uid'  => $prijemceId,
+                ':text' => $myName . ' vám poslal/a zprávu.',
+            ));
+        } catch (Throwable $eNotif) {
+            // notifikace je nepovinná – ignorujeme případnou chybu (stará struktura enum apod.)
+        }
+
+        $time = date('H:i');
+        echo json_encode(array('status' => 'ok', 'user' => $myName, 'text' => $text, 'time' => $time, 'odesilatel_id' => $myId), JSON_UNESCAPED_UNICODE);
+        exit;
+    } catch (Throwable $e) {
+        http_response_code(500);
+        echo json_encode(array('error' => 'SQL: ' . $e->getMessage()), JSON_UNESCAPED_UNICODE);
         exit;
     }
-
-    $ins = $pdo->prepare(
-        "INSERT INTO ChatZprava (nabidka_id, odesilatel_id, prijemce_id, zprava)
-         VALUES (:nid, :od, :pr, :zprava)"
-    );
-    $ins->execute(array(
-        ':nid'    => $nabidkaId,
-        ':od'     => $myId,
-        ':pr'     => $prijemceId,
-        ':zprava' => $text,
-    ));
-
-    // Notifikace příjemci
-    $notifIns = $pdo->prepare(
-        "INSERT INTO Notifikace (uzivatel_id, typ, text) VALUES (:uid, 'zprava', :text)"
-    );
-    $notifIns->execute(array(
-        ':uid'  => $prijemceId,
-        ':text' => $myName . ' vám poslal/a zprávu.',
-    ));
-
-    $time = date('H:i');
-    echo json_encode(array('status' => 'ok', 'user' => $myName, 'text' => $text, 'time' => $time, 'odesilatel_id' => $myId), JSON_UNESCAPED_UNICODE);
-    exit;
 }
 
 // ── PROFILE: GET ──
@@ -890,41 +900,56 @@ if ($action === 'conversations') {
         jout(array());
     }
     $me = (int)$_SESSION['user']['id'];
-    // GROUP BY opakuje cely CASE vyraz (ne alias) - MySQL 5.x alias v GROUP BY odmita
     try {
+        // Záměrně TRIVIÁLNÍ dotaz (běží i na MySQL 5.0). Seskupení do konverzací
+        // a výběr poslední zprávy řešíme v PHP, ne v SQL.
         $stmt = $pdo->prepare(
-            "SELECT t.nabidka_id,
-                    t.partner_id,
-                    u.jmeno AS partner_name,
-                    p.nazev AS title,
-                    t.last_time,
-                    (SELECT z.zprava FROM ChatZprava z
-                      WHERE z.nabidka_id = t.nabidka_id
-                        AND ((z.odesilatel_id = :me1 AND z.prijemce_id = t.partner_id)
-                          OR (z.odesilatel_id = t.partner_id AND z.prijemce_id = :me2))
-                      ORDER BY z.cas DESC, z.zprava_id DESC LIMIT 1) AS last_text
-             FROM (
-                 SELECT nabidka_id,
-                        CASE WHEN odesilatel_id = :me3 THEN prijemce_id ELSE odesilatel_id END AS partner_id,
-                        MAX(cas) AS last_time
-                 FROM   ChatZprava
-                 WHERE  odesilatel_id = :me4 OR prijemce_id = :me5
-                 GROUP BY nabidka_id,
-                          CASE WHEN odesilatel_id = :me6 THEN prijemce_id ELSE odesilatel_id END
-             ) t
-             JOIN Uzivatel u ON u.uzivatel_id = t.partner_id
-             JOIN Nabidka  n ON n.nabidka_id  = t.nabidka_id
-             JOIN Polozka  p ON p.polozka_id  = n.polozka_id
-             ORDER BY t.last_time DESC
-             LIMIT 100"
+            "SELECT c.nabidka_id, c.odesilatel_id, c.prijemce_id, c.zprava, c.cas, p.nazev AS title
+             FROM   ChatZprava c
+             JOIN   Nabidka n ON n.nabidka_id = c.nabidka_id
+             JOIN   Polozka p ON p.polozka_id = n.polozka_id
+             WHERE  c.odesilatel_id = :me1 OR c.prijemce_id = :me2
+             ORDER BY c.cas DESC, c.zprava_id DESC"
         );
-        $stmt->execute(array(
-            ':me1' => $me, ':me2' => $me, ':me3' => $me,
-            ':me4' => $me, ':me5' => $me, ':me6' => $me,
-        ));
-        jout($stmt->fetchAll());
-    } catch (PDOException $e) {
-        jout(array('error' => 'Chyba nacteni konverzaci.'), 500);
+        $stmt->execute(array(':me1' => $me, ':me2' => $me));
+        $rows = $stmt->fetchAll();
+
+        // Seskupit podle (nabídka + partner); díky řazení DESC je první výskyt poslední zpráva
+        $convs = array();
+        foreach ($rows as $r) {
+            $partnerId = ((int)$r['odesilatel_id'] === $me) ? (int)$r['prijemce_id'] : (int)$r['odesilatel_id'];
+            $key = $r['nabidka_id'] . '-' . $partnerId;
+            if (!isset($convs[$key])) {
+                $convs[$key] = array(
+                    'nabidka_id'   => (int)$r['nabidka_id'],
+                    'partner_id'   => $partnerId,
+                    'partner_name' => 'Uživatel',
+                    'title'        => $r['title'],
+                    'last_time'    => $r['cas'],
+                    'last_text'    => $r['zprava'],
+                );
+            }
+        }
+
+        // Doplnit jména partnerů jedním dotazem
+        if (!empty($convs)) {
+            $ids = array();
+            foreach ($convs as $c) { $ids[$c['partner_id']] = true; }
+            $ids   = array_keys($ids);
+            $place = implode(',', array_fill(0, count($ids), '?'));
+            $ns = $pdo->prepare("SELECT uzivatel_id, jmeno FROM Uzivatel WHERE uzivatel_id IN ($place)");
+            $ns->execute($ids);
+            $names = array();
+            foreach ($ns->fetchAll() as $u) { $names[(int)$u['uzivatel_id']] = $u['jmeno']; }
+            foreach ($convs as $k => $c) {
+                if (isset($names[$c['partner_id']])) $convs[$k]['partner_name'] = $names[$c['partner_id']];
+            }
+        }
+
+        jout(array_values($convs));
+    } catch (Throwable $e) {
+        // Dočasně vracíme přesnou chybu, ať je vidět, co MySQL říká
+        jout(array('error' => 'SQL: ' . $e->getMessage()), 500);
     }
 }
 
